@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,19 +32,46 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String message = "Testing Firebase...";
+
+  @override
+  void initState() {
+    super.initState();
+    testFirebase();
+  }
+
+  Future<void> testFirebase() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('test')
+          .add({'message': 'Hello Firebase!', 'time': DateTime.now()});
+
+      setState(() {
+        message = "🔥 Firebase Connected Successfully!";
+      });
+    } catch (e) {
+      setState(() {
+        message = "❌ Firebase Connection Failed!";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Firebase Connected ✅"),
-      ),
-      body: const Center(
+      appBar: AppBar(title: const Text("Firebase Test")),
+      body: Center(
         child: Text(
-          "Your Firebase is successfully initialized!",
-          style: TextStyle(fontSize: 18),
+          message,
+          style: const TextStyle(fontSize: 18),
         ),
       ),
     );
