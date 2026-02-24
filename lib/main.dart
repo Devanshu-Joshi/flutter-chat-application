@@ -1,3 +1,6 @@
+import 'package:chat_app/screens/home_screen.dart';
+import 'package:chat_app/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -27,53 +30,25 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const AuthWrapper(),
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  String message = "Testing Firebase...";
-
-  @override
-  void initState() {
-    super.initState();
-    testFirebase();
-  }
-
-  Future<void> testFirebase() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('test')
-          .add({'message': 'Hello Firebase!', 'time': DateTime.now()});
-
-      setState(() {
-        message = "🔥 Firebase Connected Successfully!";
-      });
-    } catch (e) {
-      setState(() {
-        message = "❌ Firebase Connection Failed!";
-      });
-    }
-  }
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Firebase Test")),
-      body: Center(
-        child: Text(
-          message,
-          style: const TextStyle(fontSize: 18),
-        ),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        } else {
+          return const LoginScreen();
+        }
+      },
     );
   }
 }

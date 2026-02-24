@@ -43,3 +43,24 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android local config (VERY IMPORTANT)
+android/local.properties
+android/key.properties
+
+# iOS Pods
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+
+# macOS
+macos/Pods/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Environment files (if you ever use them)
+.env
+
+# Android and gradle cache
+android/.gradle/
