@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chat_app/screens/profile_screen.dart';
 import 'package:chat_app/widgets/chat_tile.dart';
+import 'package:chat_app/widgets/empty_chat_state.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -476,7 +477,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
 
   Widget _buildChatStream(User? currentUser) {
     if (currentUser == null) {
-      return _buildEmptyState();
+      return const EmptyChatState();
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -493,7 +494,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
-          return _buildEmptyState();
+          return const EmptyChatState();
         }
 
         return _buildChatList(docs, currentUser.uid);
@@ -588,139 +589,6 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
             'Something went wrong',
             style: TextStyle(color: Colors.white70, fontSize: 16),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ── BEAUTIFUL EMPTY STATE ──
-
-  Widget _buildEmptyState() {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 120),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-
-          // ── 3D-Style Illustration ──
-          SizedBox(
-            height: 320,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Glow backdrop
-                AnimatedBuilder2(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final pulse = 0.3 + _pulseController.value * 0.15;
-                    return Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            const Color(0xFF7F00FF).withOpacity(pulse),
-                            const Color(0xFFE100FF)
-                                .withOpacity(pulse * 0.5),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                // Floating bubbles
-                ..._buildFloatingBubbles(),
-
-                // Main illustration
-                AnimatedBuilder2(
-                  animation: _floatingController,
-                  builder: (context, child) {
-                    final offset = 8.0 * _floatingController.value;
-                    return Transform.translate(
-                      offset: Offset(0, -offset),
-                      child: child,
-                    );
-                  },
-                  child: _buildMainIllustration(),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // ── Title with gradient ──
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              colors: [
-                Color(0xFF7F00FF),
-                Color(0xFFE100FF),
-                Color(0xFFFF6B6B)
-              ],
-            ).createShader(bounds),
-            child: const Text(
-              'No Conversations Yet',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: -0.5,
-                height: 1.2,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 50),
-            child: Text(
-              'Your inbox is waiting for its first message.\nConnect with friends and start chatting!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.5,
-                color: Colors.white.withOpacity(0.4),
-                fontWeight: FontWeight.w400,
-                height: 1.6,
-                letterSpacing: 0.1,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 36),
-
-          // ── Action Buttons ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Column(
-              children: [
-                _buildPrimaryButton(
-                  icon: Icons.person_add_alt_1_rounded,
-                  label: 'Find Friends',
-                  onTap: () {},
-                ),
-                const SizedBox(height: 14),
-                _buildSecondaryButton(
-                  icon: Icons.group_add_rounded,
-                  label: 'Create a Group Chat',
-                  onTap: () {},
-                ),
-                const SizedBox(height: 14),
-                _buildSecondaryButton(
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR to Connect',
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 30),
-          _buildTipCard(),
         ],
       ),
     );
