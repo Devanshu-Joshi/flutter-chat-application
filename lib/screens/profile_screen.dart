@@ -18,7 +18,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Timer? _debounce;
   bool _isChecking = false;
   bool _isAvailable = false;
-  bool _isValidFormat = false;
   bool _isLoading = false;
   String _feedbackMessage = "";
 
