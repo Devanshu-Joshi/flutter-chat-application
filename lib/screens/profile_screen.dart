@@ -13,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _usernameController = TextEditingController();
+  bool _isEditingUsername = false;
 
   Timer? _debounce;
   bool _isChecking = false;
@@ -209,6 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 30),
 
+                // ✅ Email + Created At Card (KEEP THIS)
                 Card(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
@@ -231,96 +233,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 30),
 
-                // 🔥 Edit Username Section
                 Card(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   elevation: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Change Username",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
-
-                        TextField(
-                          controller: _usernameController,
-                          decoration: InputDecoration(
-                            hintText: "Enter new username",
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            suffixIcon: _isChecking
-                                ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child:
-                                  CircularProgressIndicator(strokeWidth: 2)),
-                            )
-                                : _feedbackMessage.isEmpty
-                                ? null
-                                : Icon(
-                              _isAvailable
-                                  ? Icons.check_circle
-                                  : Icons.cancel,
-                              color: _isAvailable
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                          ),
-                          onChanged: (value) =>
-                              _onUsernameChanged(value, username),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        if (_feedbackMessage.isNotEmpty)
-                          Text(
-                            _feedbackMessage,
-                            style: TextStyle(
-                              color:
-                              _isAvailable ? Colors.green : Colors.red,
-                              fontSize: 13,
-                            ),
-                          ),
-
-                        const SizedBox(height: 20),
-
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: (_isAvailable &&
-                                !_isLoading)
-                                ? () => _changeUsername(username)
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                  BorderRadius.circular(12)),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2),
-                            )
-                                : const Text("Change Username"),
-                          ),
-                        )
-                      ],
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: !_isEditingUsername
+                          ? _buildUsernameView(username)
+                          : _buildUsernameEdit(username),
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 30),
               ],
             ),
           );
@@ -353,6 +281,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildUsernameView(String username) {
+    return Column(
+      key: const ValueKey("viewMode"),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Username",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              username,
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              onPressed: () {
+                setState(() {
+                  _isEditingUsername = true;
+                  _usernameController.text = username;
+                });
+              },
+            )
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUsernameEdit(String username) {
+    return Column(
+      key: const ValueKey("editMode"),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Change Username",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        TextField(
+          controller: _usernameController,
+          decoration: InputDecoration(
+            hintText: "Enter new username",
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12)),
+            suffixIcon: _isChecking
+                ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+                : _feedbackMessage.isEmpty
+                ? null
+                : Icon(
+              _isAvailable
+                  ? Icons.check_circle
+                  : Icons.cancel,
+              color:
+              _isAvailable ? Colors.green : Colors.red,
+            ),
+          ),
+          onChanged: (value) =>
+              _onUsernameChanged(value, username),
+        ),
+
+        const SizedBox(height: 8),
+
+        if (_feedbackMessage.isNotEmpty)
+          Text(
+            _feedbackMessage,
+            style: TextStyle(
+              color: _isAvailable ? Colors.green : Colors.red,
+              fontSize: 13,
+            ),
+          ),
+
+        const SizedBox(height: 20),
+
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: (_isAvailable && !_isLoading)
+                    ? () async {
+                  await _changeUsername(username);
+                  setState(() {
+                    _isEditingUsername = false;
+                  });
+                }
+                    : null,
+                child: _isLoading
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2),
+                )
+                    : const Text("Save"),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _isEditingUsername = false;
+                    _feedbackMessage = "";
+                    _isAvailable = false;
+                    _usernameController.clear();
+                  });
+                },
+                child: const Text("Cancel"),
+              ),
+            ),
+          ],
+        )
+      ],
     );
   }
 }
