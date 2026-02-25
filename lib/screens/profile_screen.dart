@@ -179,80 +179,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final userData = snapshot.data!;
           final username = userData['username'] ?? "";
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.blue.shade100,
-                  child: Text(
-                    username.isNotEmpty
-                        ? username[0].toUpperCase()
-                        : "?",
-                    style: const TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
                   ),
-                ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 20),
 
-                const SizedBox(height: 12),
-
-                Text(
-                  username,
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 30),
-
-                Card(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        // 🔥 USERNAME SECTION (Editable)
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: !_isEditingUsername
-                              ? _buildUsernameView(username)
-                              : _buildUsernameEdit(username),
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.blue.shade100,
+                        child: Text(
+                          username.isNotEmpty
+                              ? username[0].toUpperCase()
+                              : "?",
+                          style: const TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
                         ),
+                      ),
 
-                        const SizedBox(height: 8),
-                        const Divider(),
+                      const SizedBox(height: 12),
 
-                        // 🔹 EMAIL
-                        _modernTile(Icons.email, "Email",
-                            user!.email ?? "Not available"),
+                      Center(
+                        child: Text(
+                          username,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
 
-                        const Divider(),
+                      const SizedBox(height: 30),
 
-                        // 🔹 CREATED AT
-                        _modernTile(Icons.calendar_today,
-                            "Account Created", formattedDate),
-                      ],
-                    ),
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: !_isEditingUsername
+                                    ? _buildUsernameView(username)
+                                    : _buildUsernameEdit(username),
+                              ),
+                              const SizedBox(height: 8),
+                              const Divider(),
+                              _modernTile(Icons.email, "Email",
+                                  user!.email ?? "Not available"),
+                              const Divider(),
+                              _modernTile(Icons.calendar_today,
+                                  "Account Created", formattedDate),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      _buildLogoutButton(),
+
+                      const SizedBox(height: 40),
+                    ],
                   ),
                 ),
-
-                const SizedBox(height: 30),
-
-                const SizedBox(height: 20),
-
-                _buildLogoutButton(),
-
-                const SizedBox(height: 40),
-              ],
-            ),
+              );
+            },
           );
         },
       ),

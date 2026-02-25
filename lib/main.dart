@@ -21,6 +21,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scrollBehavior: NoGlowScrollBehavior(),
       debugShowCheckedModeBanner: false,
       title: 'Flutter Chat App',
       theme: ThemeData(
@@ -49,5 +50,16 @@ class AuthWrapper extends StatelessWidget {
         }
       },
     );
+  }
+}
+
+class NoGlowScrollBehavior extends ScrollBehavior {
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context,
+      Widget child,
+      ScrollableDetails details,
+      ) {
+    return child; // removes black glow
   }
 }
