@@ -17,13 +17,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> register() async {
     if (_isLoading) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       String email = emailController.text.trim();
       String password = passwordController.text.trim();
+
+      if (email.isEmpty || password.isEmpty) {
+        throw FirebaseAuthException(
+            code: "empty-fields", message: "All fields are required.");
+      }
 
       UserCredential userCredential =
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -32,18 +35,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       String uid = userCredential.user!.uid;
-      String username = generateUsernameFromEmail(email);
 
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      // 🔥 Generate Safe & Unique Username
+      String username = await generateUniqueUsername(email);
+
+      WriteBatch batch = FirebaseFirestore.instance.batch();
+
+      DocumentReference userRef =
+      FirebaseFirestore.instance.collection('users').doc(uid);
+
+      DocumentReference usernameRef =
+      FirebaseFirestore.instance.collection('usernames').doc(username);
+
+      batch.set(userRef, {
         'uid': uid,
         'email': email,
         'username': username,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      batch.set(usernameRef, {
+        'uid': uid,
+      });
+
+      await batch.commit();
+
+      if (mounted) Navigator.pop(context);
 
     } on FirebaseAuthException catch (e) {
       String message = "Registration failed";
@@ -54,22 +71,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
         message = "Invalid email format.";
       } else if (e.code == 'weak-password') {
         message = "Password should be at least 6 characters.";
+      } else if (e.code == 'empty-fields') {
+        message = "All fields are required.";
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+          const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // 🔥 Generate Unique Username
+  Future<String> generateUniqueUsername(String email) async {
+    String baseUsername = email.split('@')[0].toLowerCase();
+
+    // Allow only a-z, 0-9, . and %
+    baseUsername =
+        baseUsername.replaceAll(RegExp(r'[^a-z0-9.%]'), '');
+
+    // Ensure minimum 6 characters
+    if (baseUsername.length < 6) {
+      baseUsername = baseUsername.padRight(6, '0');
+    }
+
+    String username = baseUsername;
+    int counter = 1;
+
+    while (true) {
+      DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('usernames')
+          .doc(username)
+          .get();
+
+      if (!doc.exists) {
+        return username;
+      }
+
+      username = "$baseUsername$counter";
+      counter++;
     }
   }
 
@@ -108,9 +154,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
-  }
-
-  String generateUsernameFromEmail(String email) {
-    return email.split('@')[0].toLowerCase();
   }
 }
