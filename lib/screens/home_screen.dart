@@ -62,80 +62,90 @@ class _GlassBottomNavBar extends StatelessWidget {
     ];
 
     final width = MediaQuery.of(context).size.width;
-    final itemWidth = (width - 32) / items.length;
+    final horizontalPadding = 20.0;
+    final itemWidth = (width - horizontalPadding * 2) / items.length;
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 20, vertical: 12), // 🔥 reduced padding
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(40),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
-            height: 70,
+            height: 56, // 🔥 reduced height (sleek)
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2C), // 🔥 solid modern dark
-              borderRadius: BorderRadius.circular(30),
+              color: const Color(0xFF1E1E2C),
+              borderRadius: BorderRadius.circular(40),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 2,
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 15,
                 ),
               ],
             ),
-            child: Stack(
-              children: [
-                // 🔥 Moving Gradient Indicator
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOutCubic,
-                  left: currentIndex * itemWidth,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: itemWidth,
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(22),
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF7F00FF),
-                          Color(0xFFE100FF),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final itemWidth = constraints.maxWidth / items.length;
 
-                // 🔥 Icons Row
-                Row(
-                  children: List.generate(items.length, (index) {
-                    final isActive = currentIndex == index;
-
-                    return Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(30),
-                        onTap: () => onTap(index),
+                return Stack(
+                  children: [
+                    // 🔥 Moving Round Indicator (Perfectly Centered)
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeInOutCubic,
+                      left: currentIndex * itemWidth,
+                      top: 0,
+                      bottom: 0,
+                      child: SizedBox(
+                        width: itemWidth,
                         child: Center(
-                          child: AnimatedScale(
-                            duration:
-                            const Duration(milliseconds: 250),
-                            scale: isActive ? 1.2 : 1.0,
-                            child: Icon(
-                              items[index],
-                              color: isActive
-                                  ? Colors.white
-                                  : Colors.white54,
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF7F00FF),
+                                  Color(0xFFE100FF),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    );
-                  }),
-                ),
-              ],
+                    ),
+
+                    // 🔥 Icons Row
+                    Row(
+                      children: List.generate(items.length, (index) {
+                        final isActive = currentIndex == index;
+
+                        return Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(40),
+                            onTap: () => onTap(index),
+                            child: Center(
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 250),
+                                scale: isActive ? 1.15 : 1.0,
+                                child: Icon(
+                                  items[index],
+                                  size: 22,
+                                  color: isActive
+                                      ? Colors.white
+                                      : Colors.white54,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
