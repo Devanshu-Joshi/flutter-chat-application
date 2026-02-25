@@ -116,18 +116,24 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ChatHomeHeader(
-            currentUser: currentUser,
-            chatStream: _getChatStream(currentUser),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A1A),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          /// 🔥 HEADER THAT HIDES ON SCROLL
+          SliverToBoxAdapter(
+            child: SafeArea(
+              bottom: false,
+              child: ChatHomeHeader(
+                currentUser: currentUser,
+                chatStream: _getChatStream(currentUser),
+              ),
+            ),
           ),
-          Expanded(
-            child: _buildChatStream(currentUser),
-          ),
+
+          /// 🔥 CHAT CONTENT
+          _buildChatSliver(currentUser),
         ],
       ),
     );
@@ -142,29 +148,60 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         .snapshots();
   }
 
-  Widget _buildChatStream(User? currentUser) {
+  Widget _buildChatSliver(User? currentUser) {
     if (currentUser == null) {
-      return const EmptyChatState();
+      return const SliverFillRemaining(
+        child: EmptyChatState(),
+      );
     }
 
     return StreamBuilder<QuerySnapshot>(
       stream: _getChatStream(currentUser),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingShimmer();
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (context, index) => _buildLoadingItem(),
+              childCount: 6,
+            ),
+          );
         }
 
         if (snapshot.hasError) {
-          return _buildErrorState();
+          return const SliverFillRemaining(
+            child: Center(
+              child: Text(
+                'Something went wrong',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          );
         }
 
         final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
-          return const EmptyChatState();
+          return const SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyChatState(),
+          );
         }
 
-        return _buildChatList(docs, currentUser.uid);
+        return SliverList(
+          delegate: SliverChildBuilderDelegate(
+                (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              return ChatTile(
+                chatId: docs[index].id,
+                data: data,
+                currentUserId: currentUser.uid,
+                index: index,
+                onTap: () {},
+              );
+            },
+            childCount: docs.length,
+          ),
+        );
       },
     );
   }
@@ -499,6 +536,54 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingItem() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.06),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 180,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
