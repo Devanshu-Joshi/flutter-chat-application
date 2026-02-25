@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:chat_app/screens/profile_screen.dart';
 
+import 'login_screen.dart';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -29,7 +31,7 @@ class HomeScreen extends StatelessWidget {
           // 🚪 Logout Button
           IconButton(
             onPressed: () {
-              FirebaseAuth.instance.signOut();
+              _showLogoutDialog(context);
             },
             icon: const Icon(Icons.logout),
           ),
@@ -41,6 +43,42 @@ class HomeScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text("Confirm Logout"),
+          content: const Text("Do you really want to logout?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+
+                await FirebaseAuth.instance.signOut();
+                Navigator.pop(context); // close dialog only
+              },
+              child: const Text(
+                "Logout",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
