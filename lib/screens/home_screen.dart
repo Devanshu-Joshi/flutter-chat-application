@@ -6,8 +6,8 @@ import 'package:chat_app/widgets/chat_tile.dart';
 import 'package:chat_app/widgets/empty_chat_state.dart';
 import 'package:chat_app/widgets/glass_bottom_nav.dart';
 import 'package:chat_app/widgets/chat_home_header.dart';
-import 'package:chat_app/screens/friends_screen.dart'; // Add this
-import 'package:chat_app/screens/search_screen.dart';  // Add this
+import 'package:chat_app/screens/friends_screen.dart';
+import 'package:chat_app/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
