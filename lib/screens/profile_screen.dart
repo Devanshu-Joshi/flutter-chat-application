@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:chat_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -20,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isAvailable = false;
   bool _isLoading = false;
   String _feedbackMessage = "";
+  ThemeMode _selectedThemeMode = ThemeMode.system;
 
   final user = FirebaseAuth.instance.currentUser;
 
@@ -127,9 +129,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final newRef = FirebaseFirestore.instance
           .collection('usernames')
           .doc(newUsername);
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid);
+      final userRef =
+          FirebaseFirestore.instance.collection('users').doc(user!.uid);
 
       batch.delete(oldRef);
       batch.set(newRef, {"uid": user!.uid});
@@ -163,8 +164,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     if (user == null) {
-      return const Scaffold(body: Center(child: Text("No user logged in")));
+      return Scaffold(
+        body: Center(
+          child: Text(
+            "No user logged in",
+            style: textTheme.bodyLarge,
+          ),
+        ),
+      );
     }
 
     final creationTime = user!.metadata.creationTime;
@@ -173,7 +185,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : "Unknown";
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Profile")),
+      appBar: AppBar(
+        title: const Text("Profile"),
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -181,7 +195,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+                child: CircularProgressIndicator(
+              color: colorScheme.primary,
+            ));
           }
 
           final userData = snapshot.data!;
@@ -200,34 +217,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const SizedBox(height: 20),
-
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: Colors.blue.shade100,
+                        backgroundColor: colorScheme.primary.withOpacity(0.15),
                         child: Text(
                           username.isNotEmpty ? username[0].toUpperCase() : "?",
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                            color: colorScheme.primary,
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 12),
-
                       Center(
                         child: Text(
                           username,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: textTheme.headlineSmall,
                         ),
                       ),
-
                       const SizedBox(height: 30),
-
                       Card(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -241,8 +250,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 300),
                                 child: !_isEditingUsername
-                                    ? _buildUsernameView(username)
-                                    : _buildUsernameEdit(username),
+                                    ? _buildUsernameView(username, theme)
+                                    : _buildUsernameEdit(username, theme),
                               ),
                               const SizedBox(height: 8),
                               const Divider(),
@@ -250,22 +259,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Icons.email,
                                 "Email",
                                 user!.email ?? "Not available",
+                                theme,
                               ),
                               const Divider(),
                               _modernTile(
                                 Icons.calendar_today,
                                 "Account Created",
                                 formattedDate,
+                                theme,
                               ),
+                              const Divider(),
+                              _buildThemeTile(theme),
                             ],
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 30),
-
-                      _buildLogoutButton(),
-
+                      _buildLogoutButton(theme),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -278,12 +288,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _modernTile(IconData icon, String title, String value) {
+  Widget _buildThemeTile(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: Colors.blue),
+          Icon(Icons.palette, color: theme.colorScheme.primary),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Theme",
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 4),
+                DropdownButton<ThemeMode>(
+                  value: _selectedThemeMode,
+                  underline: const SizedBox(),
+                  isDense: true,
+                  items: const [
+                    DropdownMenuItem(
+                      value: ThemeMode.light,
+                      child: Text("Light"),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.dark,
+                      child: Text("Dark"),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.system,
+                      child: Text("Device Theme"),
+                    ),
+                  ],
+                  onChanged: (ThemeMode? mode) {
+                    if (mode == null) return;
+                    setState(() {
+                      _selectedThemeMode = mode;
+                    });
+                    MyApp.of(context).updateTheme(mode);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernTile(
+      IconData icon, String title, String value, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -291,13 +352,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -309,42 +369,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUsernameView(String username) {
+  Widget _buildUsernameView(String username, ThemeData theme) {
     return Column(
       key: const ValueKey("viewMode"),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment: .center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Icon(Icons.person, color: Colors.blue),
+            Icon(Icons.person, color: theme.colorScheme.primary),
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     "Username",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     username,
-                    style: const TextStyle(
-                      fontSize: 16,
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-
             Transform.translate(
               offset: const Offset(0, 8),
               child: IconButton(
                 padding: EdgeInsets.zero,
-                constraints: BoxConstraints(),
+                constraints: const BoxConstraints(),
                 iconSize: 18,
                 icon: const Icon(Icons.edit, size: 22),
                 onPressed: () {
@@ -361,7 +418,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUsernameEdit(String username) {
+  Widget _buildUsernameEdit(String username, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
     return Column(
       key: const ValueKey("editMode"),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,19 +427,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.person, color: Colors.blue),
+            Icon(Icons.person, color: colorScheme.primary),
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     "Username",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 6),
-
                   TextField(
                     controller: _usernameController,
                     decoration: InputDecoration(
@@ -405,30 +461,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             )
                           : _feedbackMessage.isEmpty
-                          ? null
-                          : Icon(
-                              _isAvailable ? Icons.check_circle : Icons.cancel,
-                              color: _isAvailable ? Colors.green : Colors.red,
-                              size: 18,
-                            ),
+                              ? null
+                              : Icon(
+                                  _isAvailable
+                                      ? Icons.check_circle
+                                      : Icons.cancel,
+                                  color: _isAvailable
+                                      ? colorScheme.primary
+                                      : colorScheme.error,
+                                  size: 18,
+                                ),
                     ),
                     onChanged: (value) => _onUsernameChanged(value, username),
                   ),
-
                   if (_feedbackMessage.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         _feedbackMessage,
                         style: TextStyle(
-                          color: _isAvailable ? Colors.green : Colors.red,
+                          color: _isAvailable
+                              ? colorScheme.primary
+                              : colorScheme.error,
                           fontSize: 12,
                         ),
                       ),
                     ),
-
                   const SizedBox(height: 10),
-
                   Row(
                     children: [
                       TextButton(
@@ -464,7 +523,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
     return GestureDetector(
       onTap: _showLogoutDialog,
       child: Container(
@@ -472,27 +532,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF3B3B), Color(0xFFD50000)],
+          gradient: LinearGradient(
+            colors: [
+              colorScheme.error,
+              colorScheme.error.withOpacity(0.8),
+            ],
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.red.withValues(alpha: 0.6),
+              color: colorScheme.error.withOpacity(0.5),
               blurRadius: 20,
               spreadRadius: 2,
               offset: const Offset(0, 6),
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.logout, color: Colors.white),
-            SizedBox(width: 10),
+            Icon(Icons.logout, color: colorScheme.onError),
+            const SizedBox(width: 10),
             Text(
               "Logout",
               style: TextStyle(
-                color: Colors.white,
+                color: colorScheme.onError,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
@@ -505,6 +568,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLogoutDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showDialog(
       context: context,
       builder: (context) {
@@ -517,18 +583,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warning_rounded, color: Colors.red, size: 50),
+                Icon(Icons.warning_rounded,
+                    color: colorScheme.error, size: 50),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   "Do you really want to logout?",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 24),
-
                 Row(
                   children: [
-                    // Cancel Button
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
@@ -541,14 +606,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: const Text("Cancel"),
                       ),
                     ),
-
                     const SizedBox(width: 12),
-
-                    // Logout Button
                     Expanded(
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                          backgroundColor: colorScheme.error,
+                          foregroundColor: colorScheme.onError,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -559,7 +622,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: const Text(
                           "Logout",
                           style: TextStyle(
-                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
