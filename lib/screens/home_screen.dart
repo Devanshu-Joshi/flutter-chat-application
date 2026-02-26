@@ -6,10 +6,11 @@ import 'package:chat_app/widgets/chat_tile.dart';
 import 'package:chat_app/widgets/empty_chat_state.dart';
 import 'package:chat_app/widgets/glass_bottom_nav.dart';
 import 'package:chat_app/widgets/chat_home_header.dart';
+import 'package:chat_app/screens/friends_screen.dart'; // Add this
+import 'package:chat_app/screens/search_screen.dart';  // Add this
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -17,17 +18,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
 
-  late final List<Widget> _pages;
-
   @override
   void initState() {
     super.initState();
-    _pages = [
-      const ChatHomeBody(),
-      const SizedBox(), // placeholder
-      const SizedBox(), // placeholder
-      const ProfileScreen(),
-    ];
   }
 
   @override
@@ -74,23 +67,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 0:
         return const ChatHomeBody();
       case 1:
-        return Center(
-          child: Text(
-            "Friends",
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        );
+        return FriendsScreen();
       case 2:
-        return Center(
-          child: Text(
-            "Search",
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        );
+        return SearchScreen();
       case 3:
         return const ProfileScreen();
       default:
