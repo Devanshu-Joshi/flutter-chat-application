@@ -29,12 +29,21 @@ class GlassBottomNavBar extends StatelessWidget {
           child: Container(
             height: 62,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2C).withValues(alpha: 0.9),
+              color: Theme.of(context)
+    .colorScheme
+    .surface
+    .withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.06)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+    .colorScheme
+    .shadow
+    .withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 5),
                 ),
@@ -87,7 +96,10 @@ class GlassBottomNavBar extends StatelessWidget {
                                     size: 21,
                                     color: isActive
                                         ? Colors.white
-                                        : Colors.white38,
+                                        : Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.38),
                                   ),
                                 ),
                                 if (!isActive) ...[
@@ -96,9 +108,10 @@ class GlassBottomNavBar extends StatelessWidget {
                                     items[index].label,
                                     style: TextStyle(
                                       fontSize: 9,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.25,
-                                      ),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.25),
                                     ),
                                   ),
                                 ],

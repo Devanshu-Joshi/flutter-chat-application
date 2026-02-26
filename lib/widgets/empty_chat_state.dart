@@ -151,25 +151,31 @@ class _EmptyChatStateState extends State<EmptyChatState>
       height: 140,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+          ],
         ),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.08),
           width: 2,
         ),
       ),
-      child: const Icon(Icons.forum_rounded, color: Colors.white, size: 52),
+      child: Icon(Icons.forum_rounded, color: Theme.of(context).colorScheme.onSurface, size: 52),
     );
   }
 
   Widget _title() {
-    return const Text(
+    return Text(
       'No Conversations Yet',
       style: TextStyle(
         fontSize: 26,
         fontWeight: FontWeight.w800,
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
@@ -181,7 +187,10 @@ class _EmptyChatStateState extends State<EmptyChatState>
         'Your inbox is waiting for its first message.\nConnect with friends and start chatting!',
         textAlign: TextAlign.center,
         style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.4),
+          color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.4),
           height: 1.6,
         ),
       ),
@@ -235,17 +244,26 @@ class _EmptyChatStateState extends State<EmptyChatState>
       height: 52,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white60),
+          Icon(icon, color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.6)),
           const SizedBox(width: 10),
           Text(
             text,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+            style: TextStyle(color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -258,11 +276,17 @@ class _EmptyChatStateState extends State<EmptyChatState>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withValues(alpha: 0.05),
+        color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.05),
       ),
-      child: const Text(
+      child: Text(
         "💡 Share your profile link to connect instantly!",
-        style: TextStyle(color: Colors.white70),
+        style: TextStyle(color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.7)),
       ),
     );
   }

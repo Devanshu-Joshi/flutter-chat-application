@@ -71,13 +71,16 @@ class ChatTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: unreadCount > 0
-                        ? Colors.white.withValues(alpha: 0.04)
+                        ? Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.04)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(
                     children: [
-                      _buildAvatar(name, photoUrl, otherUserId),
+                      _buildAvatar(context, name, photoUrl, otherUserId),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -95,7 +98,7 @@ class ChatTile extends StatelessWidget {
                                       fontWeight: unreadCount > 0
                                           ? FontWeight.w700
                                           : FontWeight.w600,
-                                      color: Colors.white,
+                                      color: Theme.of(context).colorScheme.onSurface,
                                     ),
                                   ),
                                 ),
@@ -106,7 +109,10 @@ class ChatTile extends StatelessWidget {
                                       fontSize: 11,
                                       color: unreadCount > 0
                                           ? const Color(0xFFE100FF)
-                                          : Colors.white.withValues(alpha: 0.3),
+                                          : Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.3),
                                     ),
                                   ),
                               ],
@@ -122,8 +128,14 @@ class ChatTile extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: unreadCount > 0
-                                          ? Colors.white.withValues(alpha: 0.6)
-                                          : Colors.white.withValues(alpha: 0.3),
+                                          ? Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.6)
+                                          : Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.3),
                                     ),
                                   ),
                                 ),
@@ -144,10 +156,10 @@ class ChatTile extends StatelessWidget {
                                     ),
                                     child: Text(
                                       unreadCount > 99 ? '99+' : '$unreadCount',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                                        color: Theme.of(context).colorScheme.onPrimary,
                                       ),
                                     ),
                                   ),
@@ -167,7 +179,12 @@ class ChatTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(String name, String? photoUrl, String userId) {
+  Widget _buildAvatar(
+      BuildContext context,
+      String name,
+      String? photoUrl,
+      String userId,
+      ) {
     final colors = [
       const Color(0xFFFF6B6B),
       const Color(0xFF4ECDC4),
@@ -212,7 +229,10 @@ class ChatTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF34D399),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF0A0A1A), width: 2.5),
+              border: Border.all(
+  color: Theme.of(context).colorScheme.surface,
+  width: 2.5,
+),
             ),
           ),
         ),
