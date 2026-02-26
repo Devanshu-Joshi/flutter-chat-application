@@ -65,7 +65,7 @@ class _EmptyChatStateState extends State<EmptyChatState>
         children: [
           AnimatedBuilder(
             animation: pulseController,
-            builder: (_, __) {
+            builder: (_, _) {
               final pulse = 0.3 + pulseController.value * 0.15;
               return Container(
                 width: 200,
@@ -74,9 +74,8 @@ class _EmptyChatStateState extends State<EmptyChatState>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF7F00FF).withOpacity(pulse),
-                      const Color(0xFFE100FF)
-                          .withOpacity(pulse * 0.5),
+                      const Color(0xFF7F00FF).withValues(alpha: pulse),
+                      const Color(0xFFE100FF).withValues(alpha: pulse * 0.5),
                       Colors.transparent,
                     ],
                   ),
@@ -88,8 +87,7 @@ class _EmptyChatStateState extends State<EmptyChatState>
           AnimatedBuilder(
             animation: floatingController,
             builder: (_, child) {
-              final offset =
-                  8.0 * floatingController.value;
+              final offset = 8.0 * floatingController.value;
               return Transform.translate(
                 offset: Offset(0, -offset),
                 child: child,
@@ -105,29 +103,30 @@ class _EmptyChatStateState extends State<EmptyChatState>
   List<Widget> _floatingBubbles() {
     final bubbles = [
       _BubbleData(
-          const Offset(-90, -80),
-          40,
-          const Color(0xFF7F00FF),
-          Icons.chat_bubble),
+        const Offset(-90, -80),
+        40,
+        const Color(0xFF7F00FF),
+        Icons.chat_bubble,
+      ),
       _BubbleData(
-          const Offset(85, -60),
-          35,
-          const Color(0xFFE100FF),
-          Icons.favorite),
+        const Offset(85, -60),
+        35,
+        const Color(0xFFE100FF),
+        Icons.favorite,
+      ),
       _BubbleData(
-          const Offset(-70, 70),
-          30,
-          const Color(0xFF4ECDC4),
-          Icons.emoji_emotions),
+        const Offset(-70, 70),
+        30,
+        const Color(0xFF4ECDC4),
+        Icons.emoji_emotions,
+      ),
     ];
 
     return bubbles.map((b) {
       return AnimatedBuilder(
         animation: floatingController,
-        builder: (_, __) {
-          final float = math.sin(
-              floatingController.value * math.pi) *
-              6;
+        builder: (_, _) {
+          final float = math.sin(floatingController.value * math.pi) * 6;
 
           return Transform.translate(
             offset: b.offset + Offset(0, float),
@@ -135,11 +134,10 @@ class _EmptyChatStateState extends State<EmptyChatState>
               width: b.size,
               height: b.size,
               decoration: BoxDecoration(
-                color: b.color.withOpacity(0.15),
+                color: b.color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(b.icon,
-                  color: b.color, size: b.size * 0.5),
+              child: Icon(b.icon, color: b.color, size: b.size * 0.5),
             ),
           );
         },
@@ -157,13 +155,11 @@ class _EmptyChatStateState extends State<EmptyChatState>
           colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
         ),
         border: Border.all(
-            color: Colors.white.withOpacity(0.08), width: 2),
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 2,
+        ),
       ),
-      child: const Icon(
-        Icons.forum_rounded,
-        color: Colors.white,
-        size: 52,
-      ),
+      child: const Icon(Icons.forum_rounded, color: Colors.white, size: 52),
     );
   }
 
@@ -171,9 +167,10 @@ class _EmptyChatStateState extends State<EmptyChatState>
     return const Text(
       'No Conversations Yet',
       style: TextStyle(
-          fontSize: 26,
-          fontWeight: FontWeight.w800,
-          color: Colors.white),
+        fontSize: 26,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
     );
   }
 
@@ -184,8 +181,9 @@ class _EmptyChatStateState extends State<EmptyChatState>
         'Your inbox is waiting for its first message.\nConnect with friends and start chatting!',
         textAlign: TextAlign.center,
         style: TextStyle(
-            color: Colors.white.withOpacity(0.4),
-            height: 1.6),
+          color: Colors.white.withValues(alpha: 0.4),
+          height: 1.6,
+        ),
       ),
     );
   }
@@ -220,10 +218,13 @@ class _EmptyChatStateState extends State<EmptyChatState>
         children: [
           Icon(icon, color: Colors.white),
           const SizedBox(width: 10),
-          Text(text,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700)),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -234,7 +235,7 @@ class _EmptyChatStateState extends State<EmptyChatState>
       height: 52,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -242,9 +243,10 @@ class _EmptyChatStateState extends State<EmptyChatState>
         children: [
           Icon(icon, color: Colors.white60),
           const SizedBox(width: 10),
-          Text(text,
-              style: TextStyle(
-                  color: Colors.white.withOpacity(0.7))),
+          Text(
+            text,
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+          ),
         ],
       ),
     );
@@ -256,7 +258,7 @@ class _EmptyChatStateState extends State<EmptyChatState>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
       ),
       child: const Text(
         "💡 Share your profile link to connect instantly!",
@@ -272,6 +274,5 @@ class _BubbleData {
   final Color color;
   final IconData icon;
 
-  _BubbleData(
-      this.offset, this.size, this.color, this.icon);
+  _BubbleData(this.offset, this.size, this.color, this.icon);
 }

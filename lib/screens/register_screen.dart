@@ -25,14 +25,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (email.isEmpty || password.isEmpty) {
         throw FirebaseAuthException(
-            code: "empty-fields", message: "All fields are required.");
+          code: "empty-fields",
+          message: "All fields are required.",
+        );
       }
 
-      UserCredential userCredential =
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       String uid = userCredential.user!.uid;
 
@@ -41,11 +40,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       WriteBatch batch = FirebaseFirestore.instance.batch();
 
-      DocumentReference userRef =
-      FirebaseFirestore.instance.collection('users').doc(uid);
+      DocumentReference userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
 
-      DocumentReference usernameRef =
-      FirebaseFirestore.instance.collection('usernames').doc(username);
+      DocumentReference usernameRef = FirebaseFirestore.instance
+          .collection('usernames')
+          .doc(username);
 
       batch.set(userRef, {
         'uid': uid,
@@ -54,15 +55,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      batch.set(usernameRef, {
-        'uid': uid,
-      });
+      batch.set(usernameRef, {'uid': uid});
 
       await batch.commit();
 
-      if (mounted) Navigator.pop(context);
-
+      if (!mounted) return;
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
       String message = "Registration failed";
 
       if (e.code == 'email-already-in-use') {
@@ -75,12 +76,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         message = "All fields are required.";
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Something went wrong")));
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -93,8 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     String baseUsername = email.split('@')[0].toLowerCase();
 
     // Allow only a-z, 0-9, . and %
-    baseUsername =
-        baseUsername.replaceAll(RegExp(r'[^a-z0-9.%]'), '');
+    baseUsername = baseUsername.replaceAll(RegExp(r'[^a-z0-9.%]'), '');
 
     // Ensure minimum 6 characters
     if (baseUsername.length < 6) {
@@ -141,13 +144,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed: _isLoading ? null : register,
               child: _isLoading
                   ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text("Register"),
             ),
           ],

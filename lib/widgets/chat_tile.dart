@@ -21,7 +21,7 @@ class ChatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final participants = List<String>.from(data['participants'] ?? []);
     final otherUserId = participants.firstWhere(
-          (id) => id != currentUserId,
+      (id) => id != currentUserId,
       orElse: () => '',
     );
 
@@ -39,13 +39,9 @@ class ChatTile extends StatelessWidget {
         String? photoUrl;
 
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
-          final userData =
-          userSnapshot.data!.data() as Map<String, dynamic>;
-          name = userData['name'] ??
-              userData['displayName'] ??
-              'Unknown';
-          photoUrl =
-              userData['photoUrl'] ?? userData['photoURL'];
+          final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+          name = userData['name'] ?? userData['displayName'] ?? 'Unknown';
+          photoUrl = userData['photoUrl'] ?? userData['photoURL'];
         }
 
         return TweenAnimationBuilder<double>(
@@ -62,8 +58,7 @@ class ChatTile extends StatelessWidget {
             );
           },
           child: Container(
-            margin:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -71,10 +66,12 @@ class ChatTile extends StatelessWidget {
                 onTap: onTap,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: unreadCount > 0
-                        ? Colors.white.withOpacity(0.04)
+                        ? Colors.white.withValues(alpha: 0.04)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(18),
                   ),
@@ -84,8 +81,7 @@ class ChatTile extends StatelessWidget {
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
@@ -93,12 +89,10 @@ class ChatTile extends StatelessWidget {
                                   child: Text(
                                     name,
                                     maxLines: 1,
-                                    overflow:
-                                    TextOverflow.ellipsis,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight:
-                                      unreadCount > 0
+                                      fontWeight: unreadCount > 0
                                           ? FontWeight.w700
                                           : FontWeight.w600,
                                       color: Colors.white,
@@ -111,10 +105,8 @@ class ChatTile extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: unreadCount > 0
-                                          ? const Color(
-                                          0xFFE100FF)
-                                          : Colors.white
-                                          .withOpacity(0.3),
+                                          ? const Color(0xFFE100FF)
+                                          : Colors.white.withValues(alpha: 0.3),
                                     ),
                                   ),
                               ],
@@ -126,44 +118,35 @@ class ChatTile extends StatelessWidget {
                                   child: Text(
                                     lastMessage,
                                     maxLines: 1,
-                                    overflow:
-                                    TextOverflow.ellipsis,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: unreadCount > 0
-                                          ? Colors.white
-                                          .withOpacity(0.6)
-                                          : Colors.white
-                                          .withOpacity(0.3),
+                                          ? Colors.white.withValues(alpha: 0.6)
+                                          : Colors.white.withValues(alpha: 0.3),
                                     ),
                                   ),
                                 ),
                                 if (unreadCount > 0)
                                   Container(
-                                    padding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 7,
-                                        vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
-                                      gradient:
-                                      const LinearGradient(
+                                      gradient: const LinearGradient(
                                         colors: [
                                           Color(0xFF7F00FF),
                                           Color(0xFFE100FF),
                                         ],
                                       ),
-                                      borderRadius:
-                                      BorderRadius.circular(
-                                          10),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
-                                      unreadCount > 99
-                                          ? '99+'
-                                          : '$unreadCount',
+                                      unreadCount > 99 ? '99+' : '$unreadCount',
                                       style: const TextStyle(
                                         fontSize: 10,
-                                        fontWeight:
-                                        FontWeight.w700,
+                                        fontWeight: FontWeight.w700,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -184,8 +167,7 @@ class ChatTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(
-      String name, String? photoUrl, String userId) {
+  Widget _buildAvatar(String name, String? photoUrl, String userId) {
     final colors = [
       const Color(0xFFFF6B6B),
       const Color(0xFF4ECDC4),
@@ -206,20 +188,19 @@ class ChatTile extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: LinearGradient(
               colors: [
-                color.withOpacity(0.8),
-                color.withOpacity(0.4)
+                color.withValues(alpha: 0.8),
+                color.withValues(alpha: 0.4),
               ],
             ),
           ),
           child: photoUrl != null
               ? ClipOval(
-            child: Image.network(
-              photoUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  _initial(name),
-            ),
-          )
+                  child: Image.network(
+                    photoUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _initial(name),
+                  ),
+                )
               : _initial(name),
         ),
         Positioned(
@@ -231,10 +212,7 @@ class ChatTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF34D399),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFF0A0A1A),
-                width: 2.5,
-              ),
+              border: Border.all(color: const Color(0xFF0A0A1A), width: 2.5),
             ),
           ),
         ),

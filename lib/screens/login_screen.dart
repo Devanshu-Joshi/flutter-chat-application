@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/widget_previews.dart';
 import 'register_screen.dart';
+
+@Preview(name: 'My Login Page')
+Widget previewLoginScreen() {
+  return const MaterialApp(
+    home: LoginScreen(),
+  );
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,8 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
-
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
       String message = "Login failed";
 
       if (e.code == 'user-not-found') {
@@ -39,13 +48,15 @@ class _LoginScreenState extends State<LoginScreen> {
         message = "Invalid email format.";
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     } finally {
       if (mounted) {
         setState(() {
@@ -77,26 +88,24 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: _isLoading ? null : login,
               child: _isLoading
                   ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text("Login"),
             ),
             TextButton(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const RegisterScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
                 );
               },
               child: const Text("Create Account"),
-            )
+            ),
           ],
         ),
       ),

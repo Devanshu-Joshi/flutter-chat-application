@@ -29,12 +29,12 @@ class GlassBottomNavBar extends StatelessWidget {
           child: Container(
             height: 62,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2C).withOpacity(0.9),
+              color: const Color(0xFF1E1E2C).withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 5),
                 ),
@@ -42,8 +42,7 @@ class GlassBottomNavBar extends StatelessWidget {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final itemWidth =
-                    constraints.maxWidth / items.length;
+                final itemWidth = constraints.maxWidth / items.length;
 
                 return Stack(
                   children: [
@@ -62,10 +61,7 @@ class GlassBottomNavBar extends StatelessWidget {
                             decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: LinearGradient(
-                                colors: [
-                                  Color(0xFF7F00FF),
-                                  Color(0xFFE100FF),
-                                ],
+                                colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
                               ),
                             ),
                           ),
@@ -81,12 +77,10 @@ class GlassBottomNavBar extends StatelessWidget {
                             behavior: HitTestBehavior.opaque,
                             onTap: () => onTap(index),
                             child: Column(
-                              mainAxisAlignment:
-                              MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 AnimatedScale(
-                                  duration:
-                                  const Duration(milliseconds: 250),
+                                  duration: const Duration(milliseconds: 250),
                                   scale: isActive ? 1.1 : 1.0,
                                   child: Icon(
                                     items[index].icon,
@@ -102,8 +96,9 @@ class GlassBottomNavBar extends StatelessWidget {
                                     items[index].label,
                                     style: TextStyle(
                                       fontSize: 9,
-                                      color: Colors.white
-                                          .withOpacity(0.25),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.25,
+                                      ),
                                     ),
                                   ),
                                 ],

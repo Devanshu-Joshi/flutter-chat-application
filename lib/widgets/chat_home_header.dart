@@ -42,7 +42,7 @@ class ChatHomeHeader extends StatelessWidget {
                 _getGreeting(),
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(height: 4),
@@ -72,10 +72,10 @@ class ChatHomeHeader extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: gradient
             ? const LinearGradient(
-          colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
-        )
+                colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
+              )
             : null,
-        color: gradient ? null : Colors.white.withOpacity(0.08),
+        color: gradient ? null : Colors.white.withValues(alpha: 0.08),
       ),
       child: Icon(icon, color: Colors.white),
     );
@@ -85,14 +85,13 @@ class ChatHomeHeader extends StatelessWidget {
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           const SizedBox(width: 16),
-          Icon(Icons.search,
-              color: Colors.white.withOpacity(0.3)),
+          Icon(Icons.search, color: Colors.white.withValues(alpha: 0.3)),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
@@ -100,7 +99,8 @@ class ChatHomeHeader extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.25)),
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
                 border: InputBorder.none,
               ),
             ),
@@ -118,20 +118,25 @@ class ChatHomeHeader extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: names.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (_, i) => Column(
           children: [
             CircleAvatar(
               radius: 26,
               backgroundColor: Colors.white10,
-              child: Text(names[i][0],
-                  style: const TextStyle(color: Colors.white)),
+              child: Text(
+                names[i][0],
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
             const SizedBox(height: 6),
-            Text(names[i],
-                style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withOpacity(0.6))),
+            Text(
+              names[i],
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
           ],
         ),
       ),
@@ -144,14 +149,14 @@ class ChatHomeHeader extends StatelessWidget {
         const Text(
           'Messages',
           style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Colors.white),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(width: 8),
         Container(
-          padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
@@ -161,14 +166,14 @@ class ChatHomeHeader extends StatelessWidget {
           child: StreamBuilder<QuerySnapshot>(
             stream: chatStream,
             builder: (_, snapshot) {
-              final count =
-                  snapshot.data?.docs.length ?? 0;
+              final count = snapshot.data?.docs.length ?? 0;
               return Text(
                 '$count',
                 style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700),
+                  fontSize: 11,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               );
             },
           ),
@@ -178,8 +183,7 @@ class ChatHomeHeader extends StatelessWidget {
           onPressed: () {},
           child: Text(
             'See All',
-            style: TextStyle(
-                color: Colors.white.withOpacity(0.4)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
           ),
         ),
       ],
