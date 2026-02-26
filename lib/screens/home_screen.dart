@@ -24,12 +24,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.initState();
     _pages = [
       const ChatHomeBody(),
-      const Center(
-        child: Text("Friends", style: TextStyle(color: Colors.white)),
-      ),
-      const Center(
-        child: Text("Search", style: TextStyle(color: Colors.white)),
-      ),
+      const SizedBox(), // placeholder
+      const SizedBox(), // placeholder
       const ProfileScreen(),
     ];
   }
@@ -37,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       extendBody: true,
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),
@@ -61,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         },
         child: KeyedSubtree(
           key: ValueKey(_currentIndex),
-          child: _pages[_currentIndex],
+          child: _buildPage(context),
         ),
       ),
       bottomNavigationBar: GlassBottomNavBar(
@@ -71,6 +67,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         },
       ),
     );
+  }
+
+  Widget _buildPage(BuildContext context) {
+    switch (_currentIndex) {
+      case 0:
+        return const ChatHomeBody();
+      case 1:
+        return Center(
+          child: Text(
+            "Friends",
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        );
+      case 2:
+        return Center(
+          child: Text(
+            "Search",
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        );
+      case 3:
+        return const ProfileScreen();
+      default:
+        return const SizedBox();
+    }
   }
 }
 
@@ -121,7 +146,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1A),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -170,11 +195,16 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         }
 
         if (snapshot.hasError) {
-          return const SliverFillRemaining(
+          return SliverFillRemaining(
             child: Center(
               child: Text(
                 'Something went wrong',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(
+  color: Theme.of(context)
+      .colorScheme
+      .onSurface
+      .withValues(alpha: 0.7),
+),
               ),
             ),
           );
@@ -210,7 +240,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -220,7 +253,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
             height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.06),
+              color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.06),
             ),
           ),
           const SizedBox(width: 14),
@@ -232,7 +268,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                   width: 120,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -241,7 +280,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                   width: 180,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.04),
+                    color: Theme.of(context)
+    .colorScheme
+    .onSurface
+    .withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(5),
                   ),
                 ),

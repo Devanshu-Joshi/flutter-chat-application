@@ -219,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 20),
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: colorScheme.primary.withOpacity(0.15),
+                        backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
                         child: Text(
                           username.isNotEmpty ? username[0].toUpperCase() : "?",
                           style: TextStyle(
@@ -535,12 +535,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           gradient: LinearGradient(
             colors: [
               colorScheme.error,
-              colorScheme.error.withOpacity(0.8),
+              colorScheme.error.withValues(alpha: 0.8),
             ],
           ),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.error.withOpacity(0.5),
+              color: colorScheme.error.withValues(alpha: 0.5),
               blurRadius: 20,
               spreadRadius: 2,
               offset: const Offset(0, 6),
