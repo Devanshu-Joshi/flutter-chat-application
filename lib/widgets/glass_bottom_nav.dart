@@ -29,21 +29,20 @@ class GlassBottomNavBar extends StatelessWidget {
           child: Container(
             height: 62,
             decoration: BoxDecoration(
-              color: Theme.of(context)
-    .colorScheme
-    .surface
-    .withValues(alpha: 0.9),
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.06)),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.06),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context)
-    .colorScheme
-    .shadow
-    .withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.shadow.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 5),
                 ),
@@ -97,9 +96,9 @@ class GlassBottomNavBar extends StatelessWidget {
                                     color: isActive
                                         ? Colors.white
                                         : Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.38),
+                                              .colorScheme
+                                              .onSurface
+                                              .withValues(alpha: 0.38),
                                   ),
                                 ),
                                 if (!isActive) ...[

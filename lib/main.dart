@@ -91,17 +91,19 @@ class MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     // 🔹 ADDED
-    final lightTheme =
-        ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true
-        );
+    final lightTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      useMaterial3: true,
+    );
     final darkTheme = ThemeData(
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.deepPurple,
         brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple, brightness: Brightness.dark),
-        useMaterial3: true);
-    
+      ),
+      useMaterial3: true,
+    );
+
     return _InheritedMyApp(
       data: this,
       child: MaterialApp(

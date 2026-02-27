@@ -129,8 +129,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final newRef = FirebaseFirestore.instance
           .collection('usernames')
           .doc(newUsername);
-      final userRef =
-          FirebaseFirestore.instance.collection('users').doc(user!.uid);
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid);
 
       batch.delete(oldRef);
       batch.set(newRef, {"uid": user!.uid});
@@ -171,10 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) {
       return Scaffold(
         body: Center(
-          child: Text(
-            "No user logged in",
-            style: textTheme.bodyLarge,
-          ),
+          child: Text("No user logged in", style: textTheme.bodyLarge),
         ),
       );
     }
@@ -185,9 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : "Unknown";
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profile"),
-      ),
+      appBar: AppBar(title: const Text("Profile")),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -196,9 +192,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return Center(
-                child: CircularProgressIndicator(
-              color: colorScheme.primary,
-            ));
+              child: CircularProgressIndicator(color: colorScheme.primary),
+            );
           }
 
           final userData = snapshot.data!;
@@ -219,7 +214,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 20),
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
+                        backgroundColor: colorScheme.primary.withValues(
+                          alpha: 0.15,
+                        ),
                         child: Text(
                           username.isNotEmpty ? username[0].toUpperCase() : "?",
                           style: TextStyle(
@@ -231,10 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 12),
                       Center(
-                        child: Text(
-                          username,
-                          style: textTheme.headlineSmall,
-                        ),
+                        child: Text(username, style: textTheme.headlineSmall),
                       ),
                       const SizedBox(height: 30),
                       Card(
@@ -299,10 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Theme",
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text("Theme", style: theme.textTheme.bodySmall),
                 const SizedBox(height: 4),
                 DropdownButton<ThemeMode>(
                   value: _selectedThemeMode,
@@ -339,7 +330,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _modernTile(
-      IconData icon, String title, String value, ThemeData theme) {
+    IconData icon,
+    String title,
+    String value,
+    ThemeData theme,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -350,10 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text(title, style: theme.textTheme.bodySmall),
                 const SizedBox(height: 4),
                 Text(
                   value,
@@ -383,10 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Username",
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text("Username", style: theme.textTheme.bodySmall),
                   const SizedBox(height: 4),
                   Text(
                     username,
@@ -433,10 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "Username",
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text("Username", style: theme.textTheme.bodySmall),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _usernameController,
@@ -461,16 +447,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             )
                           : _feedbackMessage.isEmpty
-                              ? null
-                              : Icon(
-                                  _isAvailable
-                                      ? Icons.check_circle
-                                      : Icons.cancel,
-                                  color: _isAvailable
-                                      ? colorScheme.primary
-                                      : colorScheme.error,
-                                  size: 18,
-                                ),
+                          ? null
+                          : Icon(
+                              _isAvailable ? Icons.check_circle : Icons.cancel,
+                              color: _isAvailable
+                                  ? colorScheme.primary
+                                  : colorScheme.error,
+                              size: 18,
+                            ),
                     ),
                     onChanged: (value) => _onUsernameChanged(value, username),
                   ),
@@ -583,8 +567,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.warning_rounded,
-                    color: colorScheme.error, size: 50),
+                Icon(Icons.warning_rounded, color: colorScheme.error, size: 50),
                 const SizedBox(height: 16),
                 Text(
                   "Do you really want to logout?",
@@ -621,9 +604,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: _logout,
                         child: const Text(
                           "Logout",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
@@ -643,6 +624,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
 
     Navigator.of(context).pop(); // close dialog
-    Navigator.of(context).pop(); // exit profile screen
   }
 }

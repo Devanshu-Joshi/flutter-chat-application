@@ -42,10 +42,9 @@ class ChatHomeHeader extends StatelessWidget {
                 _getGreeting(),
                 style: TextStyle(
                   fontSize: 14,
-                  color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(height: 4),
@@ -68,10 +67,10 @@ class ChatHomeHeader extends StatelessWidget {
   }
 
   Widget _circleButton(
-  BuildContext context,
-  IconData icon,
-  {bool gradient = false}
-) {
+    BuildContext context,
+    IconData icon, {
+    bool gradient = false,
+  }) {
     return Container(
       width: 44,
       height: 44,
@@ -83,16 +82,10 @@ class ChatHomeHeader extends StatelessWidget {
               )
             : null,
         color: gradient
-    ? null
-    : Theme.of(context)
-        .colorScheme
-        .onSurface
-        .withValues(alpha: 0.08),
+            ? null
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
       ),
-      child: Icon(
-  icon,
-  color: Theme.of(context).colorScheme.onSurface,
-),
+      child: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
     );
   }
 
@@ -100,35 +93,28 @@ class ChatHomeHeader extends StatelessWidget {
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.06),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           const SizedBox(width: 16),
           Icon(
-  Icons.search,
-  color: Theme.of(context)
-      .colorScheme
-      .onSurface
-      .withValues(alpha: 0.3),
-),
+            Icons.search,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
-              style: TextStyle(
-  color: Theme.of(context).colorScheme.onSurface,
-),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
                 hintStyle: TextStyle(
-                  color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.25),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.25),
                 ),
                 border: InputBorder.none,
               ),
@@ -152,15 +138,14 @@ class ChatHomeHeader extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.1),
               child: Text(
                 names[i][0],
                 style: TextStyle(
-  color: Theme.of(context).colorScheme.onSurface,
-),
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ),
             const SizedBox(height: 6),
@@ -168,10 +153,9 @@ class ChatHomeHeader extends StatelessWidget {
               names[i],
               style: TextStyle(
                 fontSize: 11,
-                color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -221,11 +205,10 @@ class ChatHomeHeader extends StatelessWidget {
           child: Text(
             'See All',
             style: TextStyle(
-  color: Theme.of(context)
-      .colorScheme
-      .onSurface
-      .withValues(alpha: 0.4),
-),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
           ),
         ),
       ],

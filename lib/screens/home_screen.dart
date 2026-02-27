@@ -179,11 +179,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               child: Text(
                 'Something went wrong',
                 style: TextStyle(
-  color: Theme.of(context)
-      .colorScheme
-      .onSurface
-      .withValues(alpha: 0.7),
-),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
               ),
             ),
           );
@@ -219,10 +218,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.03),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -232,10 +228,9 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
             height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.06),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.06),
             ),
           ),
           const SizedBox(width: 14),
@@ -247,10 +242,9 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                   width: 120,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.06),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -259,10 +253,9 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                   width: 180,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.04),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(5),
                   ),
                 ),

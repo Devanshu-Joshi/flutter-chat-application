@@ -5,9 +5,7 @@ import 'register_screen.dart';
 
 @Preview(name: 'My Login Page')
 Widget previewLoginScreen() {
-  return const MaterialApp(
-    home: LoginScreen(),
-  );
+  return const MaterialApp(home: LoginScreen());
 }
 
 class LoginScreen extends StatefulWidget {

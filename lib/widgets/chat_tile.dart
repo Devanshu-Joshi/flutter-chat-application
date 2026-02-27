@@ -71,10 +71,9 @@ class ChatTile extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: unreadCount > 0
-                        ? Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.04)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.04)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(18),
                   ),
@@ -98,7 +97,9 @@ class ChatTile extends StatelessWidget {
                                       fontWeight: unreadCount > 0
                                           ? FontWeight.w700
                                           : FontWeight.w600,
-                                      color: Theme.of(context).colorScheme.onSurface,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                     ),
                                   ),
                                 ),
@@ -110,9 +111,9 @@ class ChatTile extends StatelessWidget {
                                       color: unreadCount > 0
                                           ? const Color(0xFFE100FF)
                                           : Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.3),
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.3),
                                     ),
                                   ),
                               ],
@@ -129,13 +130,13 @@ class ChatTile extends StatelessWidget {
                                       fontSize: 13,
                                       color: unreadCount > 0
                                           ? Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.6)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6)
                                           : Theme.of(context)
-    .colorScheme
-    .onSurface
-    .withValues(alpha: 0.3),
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.3),
                                     ),
                                   ),
                                 ),
@@ -159,7 +160,9 @@ class ChatTile extends StatelessWidget {
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700,
-                                        color: Theme.of(context).colorScheme.onPrimary,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary,
                                       ),
                                     ),
                                   ),
@@ -180,11 +183,11 @@ class ChatTile extends StatelessWidget {
   }
 
   Widget _buildAvatar(
-      BuildContext context,
-      String name,
-      String? photoUrl,
-      String userId,
-      ) {
+    BuildContext context,
+    String name,
+    String? photoUrl,
+    String userId,
+  ) {
     final colors = [
       const Color(0xFFFF6B6B),
       const Color(0xFF4ECDC4),
@@ -230,9 +233,9 @@ class ChatTile extends StatelessWidget {
               color: const Color(0xFF34D399),
               shape: BoxShape.circle,
               border: Border.all(
-  color: Theme.of(context).colorScheme.surface,
-  width: 2.5,
-),
+                color: Theme.of(context).colorScheme.surface,
+                width: 2.5,
+              ),
             ),
           ),
         ),
