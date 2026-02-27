@@ -9,10 +9,7 @@ import '../services/friend_service.dart';
 class FriendRequestsScreen extends StatefulWidget {
   final String currentUserId;
 
-  const FriendRequestsScreen({
-    super.key,
-    required this.currentUserId,
-  });
+  const FriendRequestsScreen({super.key, required this.currentUserId});
 
   @override
   State<FriendRequestsScreen> createState() => _FriendRequestsScreenState();
@@ -45,16 +42,16 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       appBar: AppBar(
         title: Text(
           'Friend Requests',
-          style: theme.textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: colorScheme.primary,
           labelColor: colorScheme.primary,
-          unselectedLabelColor:
-          colorScheme.onSurface.withValues(alpha: 0.5),
+          unselectedLabelColor: colorScheme.onSurface.withValues(alpha: 0.5),
           labelStyle: const TextStyle(fontWeight: FontWeight.w600),
           tabs: const [
             Tab(text: 'Received'),
@@ -108,7 +105,8 @@ class _IncomingRequestsTab extends StatelessWidget {
             context,
             icon: Icons.inbox_rounded,
             title: 'No Incoming Requests',
-            subtitle: 'When someone sends you a friend request,\nit will appear here.',
+            subtitle:
+                'When someone sends you a friend request,\nit will appear here.',
           );
         }
 
@@ -157,7 +155,8 @@ class _OutgoingRequestsTab extends StatelessWidget {
             context,
             icon: Icons.outbox_rounded,
             title: 'No Sent Requests',
-            subtitle: 'Requests you send will appear here\nuntil they are accepted or revoked.',
+            subtitle:
+                'Requests you send will appear here\nuntil they are accepted or revoked.',
           );
         }
 
@@ -250,7 +249,8 @@ class _RequestTileState extends State<_RequestTile> {
             ),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -333,8 +333,7 @@ class _RequestTileState extends State<_RequestTile> {
               child: Container(
                 height: 12,
                 decoration: BoxDecoration(
-                  color:
-                  colorScheme.onSurface.withValues(alpha: 0.06),
+                  color: colorScheme.onSurface.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -359,8 +358,7 @@ class _RequestTileState extends State<_RequestTile> {
         children: [
           CircleAvatar(
             radius: 25,
-            backgroundColor:
-            colorScheme.primary.withValues(alpha: 0.15),
+            backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
             child: Text(
               username.isNotEmpty ? username[0].toUpperCase() : '?',
               style: TextStyle(
@@ -388,8 +386,7 @@ class _RequestTileState extends State<_RequestTile> {
                 Text(
                   '@$username',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface
-                        .withValues(alpha: 0.45),
+                    color: colorScheme.onSurface.withValues(alpha: 0.45),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -443,8 +440,7 @@ class _RequestTileState extends State<_RequestTile> {
         GestureDetector(
           onTap: _accept,
           child: Container(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: colorScheme.primary,
               borderRadius: BorderRadius.circular(12),
@@ -478,8 +474,7 @@ class _RequestTileState extends State<_RequestTile> {
     return GestureDetector(
       onTap: _revoke,
       child: Container(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: colorScheme.onSurface.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
@@ -499,11 +494,11 @@ class _RequestTileState extends State<_RequestTile> {
 
 // ─── SHARED EMPTY STATE ─────────────────────────────────────────────────────
 Widget _buildEmptyState(
-    BuildContext context, {
-      required IconData icon,
-      required String title,
-      required String subtitle,
-    }) {
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+}) {
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
 

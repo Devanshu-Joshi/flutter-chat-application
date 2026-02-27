@@ -75,9 +75,7 @@ class FriendService {
       return Stream.value(FriendStatus.none);
     }
 
-    return _userRelRef(currentUid, targetUid)
-        .snapshots()
-        .map((snapshot) {
+    return _userRelRef(currentUid, targetUid).snapshots().map((snapshot) {
       if (!snapshot.exists) return FriendStatus.none;
 
       final data = snapshot.data() as Map<String, dynamic>;
@@ -333,14 +331,14 @@ class FriendService {
         .where('type', isEqualTo: 'pending_received')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return RelationshipInfo(
-          otherUid: doc.id,
-          type: UserRelationshipType.pendingReceived,
-          updatedAt: doc.data()['updatedAt'] as Timestamp?,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return RelationshipInfo(
+              otherUid: doc.id,
+              type: UserRelationshipType.pendingReceived,
+              updatedAt: doc.data()['updatedAt'] as Timestamp?,
+            );
+          }).toList();
+        });
   }
 
   // ─── QUERY: OUTGOING FRIEND REQUESTS ──────────────────────────────────
@@ -352,14 +350,14 @@ class FriendService {
         .where('type', isEqualTo: 'pending_sent')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return RelationshipInfo(
-          otherUid: doc.id,
-          type: UserRelationshipType.pendingSent,
-          updatedAt: doc.data()['updatedAt'] as Timestamp?,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return RelationshipInfo(
+              otherUid: doc.id,
+              type: UserRelationshipType.pendingSent,
+              updatedAt: doc.data()['updatedAt'] as Timestamp?,
+            );
+          }).toList();
+        });
   }
 
   // ─── QUERY: FRIENDS LIST ──────────────────────────────────────────────
@@ -371,14 +369,14 @@ class FriendService {
         .where('type', isEqualTo: 'friends')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return RelationshipInfo(
-          otherUid: doc.id,
-          type: UserRelationshipType.friends,
-          updatedAt: doc.data()['updatedAt'] as Timestamp?,
-        );
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return RelationshipInfo(
+              otherUid: doc.id,
+              type: UserRelationshipType.friends,
+              updatedAt: doc.data()['updatedAt'] as Timestamp?,
+            );
+          }).toList();
+        });
   }
 
   // ─── QUERY: INCOMING REQUEST COUNT ────────────────────────────────────
@@ -396,9 +394,9 @@ class FriendService {
   /// Checks relationship status for multiple targets at once.
   /// Much more efficient than checking one at a time.
   Future<Map<String, FriendStatus>> batchGetStatuses(
-      String currentUid,
-      List<String> targetUids,
-      ) async {
+    String currentUid,
+    List<String> targetUids,
+  ) async {
     if (targetUids.isEmpty) return {};
 
     final results = <String, FriendStatus>{};

@@ -8,6 +8,7 @@ import 'package:chat_app/widgets/glass_bottom_nav.dart';
 import 'package:chat_app/widgets/chat_home_header.dart';
 import 'package:chat_app/screens/friends_screen.dart';
 import 'package:chat_app/screens/search_screen.dart';
+import 'package:chat_app/screens/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -167,7 +168,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildLoadingItem(),
+                  (context, index) => _buildLoadingItem(),
               childCount: 6,
             ),
           );
@@ -179,9 +180,10 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               child: Text(
                 'Something went wrong',
                 style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -200,12 +202,43 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         return SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
             final data = docs[index].data() as Map<String, dynamic>;
+            final chatId = docs[index].id;
+
             return ChatTile(
-              chatId: docs[index].id,
+              chatId: chatId,
               data: data,
               currentUserId: currentUser.uid,
               index: index,
-              onTap: () {},
+              onTap: () {
+                final participants =
+                List<String>.from(data['participants'] ?? []);
+                final friendUid = participants.firstWhere(
+                      (uid) => uid != currentUser.uid,
+                  orElse: () => '',
+                );
+
+                if (friendUid.isEmpty) return;
+
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(friendUid)
+                    .get()
+                    .then((doc) {
+                  if (doc.exists && context.mounted) {
+                    final friendData = doc.data() as Map<String, dynamic>;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatId: chatId,
+                          friendUid: friendUid,
+                          friendUsername:
+                          friendData['username'] ?? 'Unknown',
+                        ),
+                      ),
+                    );
+                  }
+                });
+              },
             );
           }, childCount: docs.length),
         );

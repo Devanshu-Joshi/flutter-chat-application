@@ -4,7 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:chat_app/screens/search_result_tile.dart';
+import 'package:chat_app/widgets/search_result_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -95,10 +95,11 @@ class _SearchScreenState extends State<SearchScreen>
       final results = snapshot.docs
           .where((doc) => doc.id != _currentUser?.uid)
           .map((doc) {
-        final data = doc.data();
-        data['uid'] = doc.id;
-        return data;
-      }).toList();
+            final data = doc.data();
+            data['uid'] = doc.id;
+            return data;
+          })
+          .toList();
 
       setState(() {
         _searchResults = results;
@@ -223,21 +224,20 @@ class _SearchScreenState extends State<SearchScreen>
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    color:
-                    colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    _debounceTimer?.cancel();
-                    setState(() {
-                      _searchResults = [];
-                      _hasSearched = false;
-                      _lastQuery = '';
-                    });
-                  },
-                )
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          _debounceTimer?.cancel();
+                          setState(() {
+                            _searchResults = [];
+                            _hasSearched = false;
+                            _lastQuery = '';
+                          });
+                        },
+                      )
                     : null,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
@@ -273,9 +273,8 @@ class _SearchScreenState extends State<SearchScreen>
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => FriendRequestsScreen(
-                      currentUserId: _currentUser!.uid,
-                    ),
+                    builder: (_) =>
+                        FriendRequestsScreen(currentUserId: _currentUser!.uid),
                   ),
                 );
               },
@@ -333,8 +332,7 @@ class _SearchScreenState extends State<SearchScreen>
                 height: 50,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: theme.colorScheme.onSurface
-                      .withValues(alpha: 0.06),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
                 ),
               ),
               const SizedBox(width: 14),
@@ -346,8 +344,9 @@ class _SearchScreenState extends State<SearchScreen>
                       width: 120,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.06),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.06,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
@@ -356,8 +355,9 @@ class _SearchScreenState extends State<SearchScreen>
                       width: 80,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.04),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.04,
+                        ),
                         borderRadius: BorderRadius.circular(5),
                       ),
                     ),
@@ -446,10 +446,10 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildRecentlyViewed(
-      List<QueryDocumentSnapshot> recentDocs,
-      ThemeData theme,
-      ColorScheme colorScheme,
-      ) {
+    List<QueryDocumentSnapshot> recentDocs,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -480,8 +480,7 @@ class _SearchScreenState extends State<SearchScreen>
             physics: const BouncingScrollPhysics(),
             itemCount: recentDocs.length,
             itemBuilder: (context, index) {
-              final data =
-              recentDocs[index].data() as Map<String, dynamic>;
+              final data = recentDocs[index].data() as Map<String, dynamic>;
               final uid = data['uid'] as String;
               return FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance
@@ -489,12 +488,11 @@ class _SearchScreenState extends State<SearchScreen>
                     .doc(uid)
                     .get(),
                 builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData ||
-                      !userSnapshot.data!.exists) {
+                  if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
                     return const SizedBox.shrink();
                   }
-                  final userData = userSnapshot.data!.data()
-                  as Map<String, dynamic>;
+                  final userData =
+                      userSnapshot.data!.data() as Map<String, dynamic>;
                   userData['uid'] = uid;
                   return SearchResultTile(
                     userData: userData,
@@ -555,8 +553,7 @@ class _SearchScreenState extends State<SearchScreen>
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                      colorScheme.primary.withValues(alpha: 0.3),
+                      color: colorScheme.primary.withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -565,8 +562,7 @@ class _SearchScreenState extends State<SearchScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.search_rounded,
-                        color: colorScheme.onPrimary),
+                    Icon(Icons.search_rounded, color: colorScheme.onPrimary),
                     const SizedBox(width: 10),
                     Text(
                       'Start Searching',
@@ -596,8 +592,7 @@ class _SearchScreenState extends State<SearchScreen>
                   child: Text(
                     'Type a username to find and connect with people!',
                     style: TextStyle(
-                      color: colorScheme.onSurface
-                          .withValues(alpha: 0.7),
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -627,8 +622,7 @@ class _SearchScreenState extends State<SearchScreen>
                   gradient: RadialGradient(
                     colors: [
                       colorScheme.primary.withValues(alpha: pulse),
-                      colorScheme.secondary
-                          .withValues(alpha: pulse * 0.5),
+                      colorScheme.secondary.withValues(alpha: pulse * 0.5),
                       Colors.transparent,
                     ],
                   ),
@@ -658,8 +652,7 @@ class _SearchScreenState extends State<SearchScreen>
                   ],
                 ),
                 border: Border.all(
-                  color:
-                  colorScheme.onSurface.withValues(alpha: 0.08),
+                  color: colorScheme.onSurface.withValues(alpha: 0.08),
                   width: 2,
                 ),
               ),
@@ -678,18 +671,29 @@ class _SearchScreenState extends State<SearchScreen>
   List<Widget> _buildFloatingBubbles(ColorScheme colorScheme) {
     final bubbles = [
       _BubbleInfo(
-          const Offset(-80, -70), 38, colorScheme.primary, Icons.search),
-      _BubbleInfo(const Offset(75, -50), 33, colorScheme.secondary,
-          Icons.person_add),
-      _BubbleInfo(const Offset(-60, 60), 28, colorScheme.tertiary,
-          Icons.chat_bubble),
+        const Offset(-80, -70),
+        38,
+        colorScheme.primary,
+        Icons.search,
+      ),
+      _BubbleInfo(
+        const Offset(75, -50),
+        33,
+        colorScheme.secondary,
+        Icons.person_add,
+      ),
+      _BubbleInfo(
+        const Offset(-60, 60),
+        28,
+        colorScheme.tertiary,
+        Icons.chat_bubble,
+      ),
     ];
     return bubbles.map((b) {
       return AnimatedBuilder(
         animation: _floatingController,
         builder: (_, __) {
-          final float =
-              math.sin(_floatingController.value * math.pi) * 6;
+          final float = math.sin(_floatingController.value * math.pi) * 6;
           return Transform.translate(
             offset: b.offset + Offset(0, float),
             child: Container(
@@ -699,8 +703,7 @@ class _SearchScreenState extends State<SearchScreen>
                 color: b.color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child:
-              Icon(b.icon, color: b.color, size: b.size * 0.5),
+              child: Icon(b.icon, color: b.color, size: b.size * 0.5),
             ),
           );
         },

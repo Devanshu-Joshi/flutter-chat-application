@@ -5,6 +5,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/friend_service.dart';
+import '../services/chat_service.dart';
+import 'chat_screen.dart';
 
 class UserProfileView extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -34,11 +36,14 @@ class _UserProfileViewState extends State<UserProfileView> {
 
     _statusSubscription = _friendService
         .statusStream(widget.currentUserId, _userData['uid'])
-        .listen((status) {
-      if (mounted) setState(() => _friendStatus = status);
-    }, onError: (_) {
-      if (mounted) setState(() => _friendStatus = FriendStatus.none);
-    });
+        .listen(
+          (status) {
+            if (mounted) setState(() => _friendStatus = status);
+          },
+          onError: (_) {
+            if (mounted) setState(() => _friendStatus = FriendStatus.none);
+          },
+        );
   }
 
   @override
@@ -109,10 +114,7 @@ class _UserProfileViewState extends State<UserProfileView> {
     setState(() => _actionInProgress = true);
 
     try {
-      await _friendService.removeFriend(
-        widget.currentUserId,
-        _userData['uid'],
-      );
+      await _friendService.removeFriend(widget.currentUserId, _userData['uid']);
     } catch (e) {
       if (mounted) _showSnackBar('Failed to remove friend.');
     } finally {
@@ -126,15 +128,24 @@ class _UserProfileViewState extends State<UserProfileView> {
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
   void _openChat() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Opening chat...')),
+    final chatService = ChatService();
+    final chatId = chatService.getChatId(
+        widget.currentUserId, _userData['uid']);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: chatId,
+          friendUid: _userData['uid'],
+          friendUsername: _userData['username'] ?? 'Unknown',
+        ),
+      ),
     );
   }
 
@@ -146,29 +157,27 @@ class _UserProfileViewState extends State<UserProfileView> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.undo_rounded,
-                  color: colorScheme.error, size: 48),
+              Icon(Icons.undo_rounded, color: colorScheme.error, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Revoke Friend Request?',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Do you want to withdraw your friend request?',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color:
-                  colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 24),
@@ -177,10 +186,10 @@ class _UserProfileViewState extends State<UserProfileView> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: () => Navigator.pop(ctx),
                       child: const Text('Cancel'),
@@ -192,18 +201,19 @@ class _UserProfileViewState extends State<UserProfileView> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.error,
                         foregroundColor: colorScheme.onError,
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
                         _revokeRequest();
                       },
-                      child: const Text('Revoke',
-                          style:
-                          TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Revoke',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -223,29 +233,31 @@ class _UserProfileViewState extends State<UserProfileView> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.person_remove_rounded,
-                  color: colorScheme.error, size: 48),
+              Icon(
+                Icons.person_remove_rounded,
+                color: colorScheme.error,
+                size: 48,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Remove Friend',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Are you sure you want to remove $username from your friends?',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color:
-                  colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 24),
@@ -254,10 +266,10 @@ class _UserProfileViewState extends State<UserProfileView> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: () => Navigator.pop(ctx),
                       child: const Text('Cancel'),
@@ -269,18 +281,19 @@ class _UserProfileViewState extends State<UserProfileView> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.error,
                         foregroundColor: colorScheme.onError,
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
                         _removeFriend();
                       },
-                      child: const Text('Remove',
-                          style:
-                          TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Remove',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -305,17 +318,18 @@ class _UserProfileViewState extends State<UserProfileView> {
       appBar: AppBar(
         title: Text(
           username,
-          style: theme.textTheme.titleLarge
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         centerTitle: true,
         actions: [
           if (_friendStatus == FriendStatus.friends)
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert_rounded,
-                  color: colorScheme.onSurface),
+              icon: Icon(Icons.more_vert_rounded, color: colorScheme.onSurface),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
               onSelected: (value) {
                 if (value == 'remove') _showRemoveFriendDialog();
               },
@@ -324,11 +338,16 @@ class _UserProfileViewState extends State<UserProfileView> {
                   value: 'remove',
                   child: Row(
                     children: [
-                      Icon(Icons.person_remove_rounded,
-                          color: colorScheme.error, size: 20),
+                      Icon(
+                        Icons.person_remove_rounded,
+                        color: colorScheme.error,
+                        size: 20,
+                      ),
                       const SizedBox(width: 12),
-                      Text('Remove Friend',
-                          style: TextStyle(color: colorScheme.error)),
+                      Text(
+                        'Remove Friend',
+                        style: TextStyle(color: colorScheme.error),
+                      ),
                     ],
                   ),
                 ),
@@ -343,8 +362,7 @@ class _UserProfileViewState extends State<UserProfileView> {
           children: [
             CircleAvatar(
               radius: 60,
-              backgroundColor:
-              colorScheme.primary.withValues(alpha: 0.15),
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
               child: Text(
                 username.isNotEmpty ? username[0].toUpperCase() : '?',
                 style: TextStyle(
@@ -374,22 +392,25 @@ class _UserProfileViewState extends State<UserProfileView> {
             const SizedBox(height: 32),
             Card(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                borderRadius: BorderRadius.circular(16),
+              ),
               elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    _infoTile(
-                        Icons.person, 'Username', username, theme),
+                    _infoTile(Icons.person, 'Username', username, theme),
                     if (email.isNotEmpty) ...[
                       const Divider(),
-                      _infoTile(
-                          Icons.email, 'Email', email, theme),
+                      _infoTile(Icons.email, 'Email', email, theme),
                     ],
                     const Divider(),
-                    _infoTile(Icons.info_outline_rounded, 'Status',
-                        _friendStatusLabel(), theme),
+                    _infoTile(
+                      Icons.info_outline_rounded,
+                      'Status',
+                      _friendStatusLabel(),
+                      theme,
+                    ),
                   ],
                 ),
               ),
@@ -415,8 +436,7 @@ class _UserProfileViewState extends State<UserProfileView> {
     }
   }
 
-  Widget _buildProfileActionButton(
-      ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildProfileActionButton(ThemeData theme, ColorScheme colorScheme) {
     if (_friendStatus == FriendStatus.loading) {
       return SizedBox(
         width: 28,
@@ -489,40 +509,39 @@ class _UserProfileViewState extends State<UserProfileView> {
         ),
         child: _actionInProgress
             ? Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: fgColor,
-            ),
-          ),
-        )
-            : Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: fgColor, size: 20),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: fgColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: fgColor,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: fgColor, size: 20),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _infoTile(
-      IconData icon, String title, String value, ThemeData theme) {
+  Widget _infoTile(IconData icon, String title, String value, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -537,8 +556,9 @@ class _UserProfileViewState extends State<UserProfileView> {
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
