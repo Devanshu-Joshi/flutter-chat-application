@@ -198,7 +198,7 @@ class _SearchScreenState extends State<SearchScreen>
                 ),
               ),
               // Friend Requests badge button
-              _buildRequestsBadge(colorScheme),
+              // _buildRequestsBadge(colorScheme),
             ],
           ),
           const SizedBox(height: 16),
@@ -251,63 +251,6 @@ class _SearchScreenState extends State<SearchScreen>
           const SizedBox(height: 8),
         ],
       ),
-    );
-  }
-
-  // ─── REQUESTS BADGE ───────────────────────────────────────────────────
-  Widget _buildRequestsBadge(ColorScheme colorScheme) {
-    if (_currentUser == null) return const SizedBox.shrink();
-
-    return StreamBuilder<int>(
-      stream: _friendService.incomingRequestCountStream(_currentUser!.uid),
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.person_add_rounded,
-                color: colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        FriendRequestsScreen(currentUserId: _currentUser!.uid),
-                  ),
-                );
-              },
-            ),
-            if (count > 0)
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(
-                    minWidth: 20,
-                    minHeight: 20,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.error,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: TextStyle(
-                        color: colorScheme.onError,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 

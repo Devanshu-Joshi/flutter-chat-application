@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:chat_app/services/friend_service.dart';
+import 'package:chat_app/screens/friend_requests_screen.dart';
 
 class ChatHomeHeader extends StatelessWidget {
   final User? currentUser;
   final Stream<QuerySnapshot>? chatStream;
+  final FriendService _friendService = FriendService();
 
-  const ChatHomeHeader({
+  ChatHomeHeader({
     super.key,
     required this.currentUser,
     required this.chatStream,
@@ -32,6 +35,7 @@ class ChatHomeHeader extends StatelessWidget {
   }
 
   Widget _topRow(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -42,9 +46,7 @@ class ChatHomeHeader extends StatelessWidget {
                 _getGreeting(),
                 style: TextStyle(
                   fontSize: 14,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(height: 4),
@@ -52,25 +54,90 @@ class ChatHomeHeader extends StatelessWidget {
                 currentUser?.displayName ?? 'User',
                 style: TextStyle(
                   fontSize: 26,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: colorScheme.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
         ),
+        // 1. Friend Requests Button with Badge
+        _buildFriendRequestButton(context, colorScheme),
+        const SizedBox(width: 10),
+
+        // 2. Notification Button
         _circleButton(context, Icons.notifications_none_rounded),
         const SizedBox(width: 10),
+
+        // 3. Edit/Create Button (Gradient)
         _circleButton(context, Icons.edit_square, gradient: true),
       ],
     );
   }
 
+  Widget _buildFriendRequestButton(BuildContext context, ColorScheme colorScheme) {
+    if (currentUser == null) return const SizedBox.shrink();
+
+    return StreamBuilder<int>(
+      stream: _friendService.incomingRequestCountStream(currentUser!.uid),
+      builder: (context, snapshot) {
+        final count = snapshot.data ?? 0;
+
+        return Stack(
+          clipBehavior: Clip.none, // Allows the badge to sit slightly outside
+          children: [
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FriendRequestsScreen(currentUserId: currentUser!.uid),
+                  ),
+                );
+              },
+              child: _circleButton(context, Icons.person_add_rounded),
+            ),
+            if (count > 0)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: colorScheme.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colorScheme.surface, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      )
+                    ],
+                  ),
+                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                  child: Text(
+                    count > 9 ? '9+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _circleButton(
-    BuildContext context,
-    IconData icon, {
-    bool gradient = false,
-  }) {
+      BuildContext context,
+      IconData icon, {
+        bool gradient = false,
+      }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: 44,
       height: 44,
@@ -78,16 +145,25 @@ class ChatHomeHeader extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: gradient
             ? const LinearGradient(
-                colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
-              )
+          colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        )
             : null,
         color: gradient
             ? null
-            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+            : colorScheme.onSurface.withValues(alpha: 0.08),
       ),
-      child: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
+      child: Icon(
+        icon,
+        color: gradient ? Colors.white : colorScheme.onSurface,
+        size: 22,
+      ),
     );
   }
+
+  // ... rest of your existing methods (_searchBar, _onlineFriends, _messageHeader, _getGreeting)
+  // I have kept them the same as your source file.
 
   Widget _searchBar(BuildContext context) {
     return Container(
@@ -101,9 +177,7 @@ class ChatHomeHeader extends StatelessWidget {
           const SizedBox(width: 16),
           Icon(
             Icons.search,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.3),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -112,9 +186,7 @@ class ChatHomeHeader extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
                 hintStyle: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.25),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.25),
                 ),
                 border: InputBorder.none,
               ),
@@ -127,7 +199,6 @@ class ChatHomeHeader extends StatelessWidget {
 
   Widget _onlineFriends(BuildContext context) {
     final names = ['Alex', 'Sarah', 'Mike', 'Emma'];
-
     return SizedBox(
       height: 90,
       child: ListView.separated(
@@ -138,14 +209,10 @@ class ChatHomeHeader extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.1),
+              backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               child: Text(
                 names[i][0],
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               ),
             ),
             const SizedBox(height: 6),
@@ -153,9 +220,7 @@ class ChatHomeHeader extends StatelessWidget {
               names[i],
               style: TextStyle(
                 fontSize: 11,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -205,9 +270,7 @@ class ChatHomeHeader extends StatelessWidget {
           child: Text(
             'See All',
             style: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.4),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ),
         ),
