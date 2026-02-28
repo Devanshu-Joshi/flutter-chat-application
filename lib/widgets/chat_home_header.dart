@@ -159,16 +159,6 @@ class ChatHomeHeader extends StatelessWidget {
             },
           ),
         ),
-        const Spacer(),
-        TextButton(
-          onPressed: () {},
-          child: Text(
-            'See All',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
       ],
     );
   }
