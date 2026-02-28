@@ -26,8 +26,6 @@ class ChatHomeHeader extends StatelessWidget {
           const SizedBox(height: 20),
           _searchBar(context),
           const SizedBox(height: 16),
-          _onlineFriends(context),
-          const SizedBox(height: 16),
           _messageHeader(context),
         ],
       ),
@@ -36,6 +34,7 @@ class ChatHomeHeader extends StatelessWidget {
 
   Widget _topRow(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       children: [
         Expanded(
@@ -50,120 +49,48 @@ class ChatHomeHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                currentUser?.displayName ?? 'User',
-                style: TextStyle(
-                  fontSize: 26,
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
+
+              // ✅ Fetch name from Firestore
+              currentUser == null
+                  ? const Text('User')
+                  : StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(currentUser!.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return Text(
+                      '...',
+                      style: TextStyle(
+                        fontSize: 26,
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    );
+                  }
+
+                  final data = snapshot.data!.data()
+                  as Map<String, dynamic>?;
+
+                  final name = data?['username'] ?? 'User';
+
+                  return Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 26,
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  );
+                },
               ),
             ],
           ),
         ),
-        // 1. Friend Requests Button with Badge
-        _buildFriendRequestButton(context, colorScheme),
-        const SizedBox(width: 10),
-
-        // 2. Notification Button
-        _circleButton(context, Icons.notifications_none_rounded),
-        const SizedBox(width: 10),
-
-        // 3. Edit/Create Button (Gradient)
-        _circleButton(context, Icons.edit_square, gradient: true),
       ],
     );
   }
-
-  Widget _buildFriendRequestButton(BuildContext context, ColorScheme colorScheme) {
-    if (currentUser == null) return const SizedBox.shrink();
-
-    return StreamBuilder<int>(
-      stream: _friendService.incomingRequestCountStream(currentUser!.uid),
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-
-        return Stack(
-          clipBehavior: Clip.none, // Allows the badge to sit slightly outside
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => FriendRequestsScreen(currentUserId: currentUser!.uid),
-                  ),
-                );
-              },
-              child: _circleButton(context, Icons.person_add_rounded),
-            ),
-            if (count > 0)
-              Positioned(
-                right: -2,
-                top: -2,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colorScheme.error,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colorScheme.surface, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      )
-                    ],
-                  ),
-                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                  child: Text(
-                    count > 9 ? '9+' : '$count',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _circleButton(
-      BuildContext context,
-      IconData icon, {
-        bool gradient = false,
-      }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: gradient
-            ? const LinearGradient(
-          colors: [Color(0xFF7F00FF), Color(0xFFE100FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        )
-            : null,
-        color: gradient
-            ? null
-            : colorScheme.onSurface.withValues(alpha: 0.08),
-      ),
-      child: Icon(
-        icon,
-        color: gradient ? Colors.white : colorScheme.onSurface,
-        size: 22,
-      ),
-    );
-  }
-
-  // ... rest of your existing methods (_searchBar, _onlineFriends, _messageHeader, _getGreeting)
-  // I have kept them the same as your source file.
 
   Widget _searchBar(BuildContext context) {
     return Container(
@@ -193,38 +120,6 @@ class ChatHomeHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _onlineFriends(BuildContext context) {
-    final names = ['Alex', 'Sarah', 'Mike', 'Emma'];
-    return SizedBox(
-      height: 90,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: names.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (_, i) => Column(
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-              child: Text(
-                names[i][0],
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              names[i],
-              style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
