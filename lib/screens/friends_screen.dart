@@ -175,77 +175,77 @@ class FriendsScreen extends StatelessWidget {
         snapshot.data!.data() as Map<String, dynamic>;
         final username = userData['username'] ?? 'User';
 
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => UserProfileView(
-                    userData: {
-                      'uid': friend.otherUid,
-                      'username': username,
-                      'email': userData['email'],
-                    },
-                    currentUserId: _currentUser!.uid,
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                color: colorScheme.onSurface.withValues(alpha: 0.04),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor:
-                    colorScheme.primary.withValues(alpha: 0.15),
-                    child: Text(
-                      username.isNotEmpty
-                          ? username[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+            child: Material(
+              color: colorScheme.onSurface.withValues(alpha: 0.04),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => UserProfileView(
+                        userData: {
+                          'uid': friend.otherUid,
+                          'username': username,
+                          'email': userData['email'],
+                        },
+                        currentUserId: _currentUser!.uid,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      username,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.chat_bubble_rounded,
-                        color: colorScheme.primary),
-                    onPressed: () {
-                      final chatId = _chatService.getChatId(
-                          _currentUser!.uid, friend.otherUid);
-
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            chatId: chatId,
-                            friendUid: friend.otherUid,
-                            friendUsername: username,
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 26,
+                        backgroundColor:
+                        colorScheme.primary.withValues(alpha: 0.15),
+                        child: Text(
+                          username.isNotEmpty
+                              ? username[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      );
-                    },
-                  )
-                ],
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          username,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.chat_bubble_rounded,
+                            color: colorScheme.primary),
+                        onPressed: () {
+                          final chatId = _chatService.getChatId(
+                              _currentUser!.uid, friend.otherUid);
+
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                chatId: chatId,
+                                friendUid: friend.otherUid,
+                                friendUsername: username,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
