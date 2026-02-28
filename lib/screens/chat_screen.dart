@@ -31,11 +31,53 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  Stream<DocumentSnapshot?> _friendshipStream() {
+    return FirebaseFirestore.instance
+        .collection('relationships')
+        .where('users', arrayContains: _currentUser!.uid)
+        .snapshots()
+        .map((snapshot) {
+      try {
+        return snapshot.docs.firstWhere((doc) {
+          final users = List<String>.from(doc['users']);
+          return users.contains(widget.friendUid);
+        });
+      } catch (e) {
+        return null;
+      }
+    });
+  }
+
   // ─── SEND MESSAGE ─────────────────────────────────────────────────────
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending || _currentUser == null) return;
 
+    // ✅ Double-check friendship BEFORE modifying UI
+    final relationshipQuery = await FirebaseFirestore.instance
+        .collection('relationships')
+        .where('users', arrayContains: _currentUser!.uid)
+        .get();
+
+    bool areFriends = false;
+
+    for (var doc in relationshipQuery.docs) {
+      final users = List<String>.from(doc['users']);
+      if (users.contains(widget.friendUid) &&
+          doc['type'] == 'friends') {
+        areFriends = true;
+        break;
+      }
+    }
+
+    if (!areFriends) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You are no longer friends")),
+      );
+      return;
+    }
+
+    // ✅ NOW start sending state
     setState(() => _isSending = true);
     _messageController.clear();
 
@@ -45,7 +87,6 @@ class _ChatScreenState extends State<ChatScreen> {
           .collection('chats')
           .doc(widget.chatId);
 
-      // Check if chat document exists, if not create it
       final chatDoc = await chatRef.get();
       if (!chatDoc.exists) {
         await chatRef.set({
@@ -63,14 +104,12 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
 
-      // Add message to subcollection
       await chatRef.collection('messages').add({
         'text': text,
         'senderId': _currentUser!.uid,
         'timestamp': now,
       });
 
-      // Scroll to bottom
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -135,15 +174,29 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          // Messages list
-          Expanded(
-            child: _buildMessagesList(cs),
-          ),
-          // Input bar
-          _buildInputBar(theme, cs),
-        ],
+      body: StreamBuilder<DocumentSnapshot?>(
+        stream: _friendshipStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final relationshipDoc = snapshot.data;
+          bool areFriends = false;
+
+          if (relationshipDoc != null && relationshipDoc.exists) {
+            final data = relationshipDoc.data() as Map<String, dynamic>?;
+            final type = data?['type'];
+            areFriends = type == 'friends';
+          }
+
+          return Column(
+            children: [
+              Expanded(child: _buildMessagesList(cs)),
+              _buildInputBar(theme, cs, areFriends),
+            ],
+          );
+        },
       ),
     );
   }
@@ -281,7 +334,40 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ─── INPUT BAR ────────────────────────────────────────────────────────
-  Widget _buildInputBar(ThemeData theme, ColorScheme cs) {
+  Widget _buildInputBar(
+      ThemeData theme,
+      ColorScheme cs,
+      bool areFriends,
+      ) {
+    if (!areFriends) {
+      return Container(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          14,
+          16,
+          MediaQuery.of(context).padding.bottom + 14,
+        ),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          border: Border(
+            top: BorderSide(
+              color: cs.onSurface.withValues(alpha: 0.08),
+            ),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            "You are no longer friends",
+            style: TextStyle(
+              color: cs.error,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ✅ Normal input bar if friends
     return Container(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -299,7 +385,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          // Text input
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -308,31 +393,20 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: TextField(
                 controller: _messageController,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: cs.onSurface,
-                ),
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: 4,
-                minLines: 1,
-                decoration: InputDecoration(
+                enabled: areFriends,
+                decoration: const InputDecoration(
                   hintText: 'Type a message...',
-                  hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                    color: cs.onSurface.withValues(alpha: 0.4),
-                  ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
+                  contentPadding:
+                  EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // Send button
           GestureDetector(
-            onTap: _sendMessage,
+            onTap: areFriends ? _sendMessage : null,
             child: Container(
               width: 46,
               height: 46,
@@ -340,15 +414,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: cs.primary,
                 shape: BoxShape.circle,
               ),
-              child: _isSending
-                  ? Padding(
-                padding: const EdgeInsets.all(12),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: cs.onPrimary,
-                ),
-              )
-                  : Icon(
+              child: Icon(
                 Icons.send_rounded,
                 color: cs.onPrimary,
                 size: 20,
