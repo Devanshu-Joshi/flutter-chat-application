@@ -308,26 +308,46 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           .collection('messages')
           .doc(messageId);
 
-      final doc = await messageRef.get();
-      final reactions =
-      Map<String, dynamic>.from(doc.data()?['reactions'] ?? {});
+      // Use transaction for atomic read-modify-write
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final doc = await transaction.get(messageRef);
 
-      if (reactions[_currentUser!.uid] == emoji) {
-        // Remove reaction
-        reactions.remove(_currentUser!.uid);
-      } else {
-        // Add/change reaction
-        reactions[_currentUser!.uid] = emoji;
-      }
+        if (!doc.exists) {
+          throw Exception('Message not found');
+        }
 
-      await messageRef.update({'reactions': reactions});
+        final data = doc.data() as Map<String, dynamic>;
+        final reactions = Map<String, String>.from(data['reactions'] ?? {});
+        final senderId = data['senderId'] as String; // Preserve senderId
 
-      setState(() {
-        _wasDirectSelection = false;
-        _directSelectedMessageId = null;
+        if (reactions[_currentUser!.uid] == emoji) {
+          // Remove reaction if same emoji tapped
+          reactions.remove(_currentUser!.uid);
+        } else {
+          // Add or change reaction
+          reactions[_currentUser!.uid] = emoji;
+        }
+
+        // Update with senderId preserved (required by rules)
+        transaction.update(messageRef, {
+          'reactions': reactions,
+          'senderId': senderId, // Must include to satisfy rules
+        });
       });
+
+      // Clear selection after successful reaction
+      if (mounted) {
+        setState(() {
+          _wasDirectSelection = false;
+          _directSelectedMessageId = null;
+          _selectedMessageIds.clear();
+        });
+      }
     } catch (e) {
-      _showSnackBar('Failed to add reaction');
+      debugPrint('Reaction error: $e');
+      if (mounted) {
+        _showSnackBar('Failed to add reaction');
+      }
     }
   }
 
