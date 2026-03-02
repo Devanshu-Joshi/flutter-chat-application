@@ -187,16 +187,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
         return Stack(
           children: [
+            // Tap outside: close emoji bar but KEEP selection
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
                   _removeEmojiOverlay();
-                  _clearSelection();
+                  // Reset direct selection flags so emoji bar won't reappear
+                  // but DON'T clear selectedMessageIds - keep message selected
+                  _wasDirectSelection.value = false;
+                  _directSelectedMessageId.value = null;
                 },
                 child: Container(color: Colors.transparent),
               ),
             ),
+            // Emoji picker
             Positioned(
               left: left,
               top: top,
