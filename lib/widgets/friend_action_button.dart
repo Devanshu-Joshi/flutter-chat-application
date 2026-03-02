@@ -50,12 +50,12 @@ class _FriendActionButtonState extends State<FriendActionButton> {
         .statusStream(widget.currentUserId, widget.targetUid)
         .listen(
           (status) {
-        if (mounted) setState(() => _status = status);
-      },
-      onError: (_) {
-        if (mounted) setState(() => _status = FriendStatus.none);
-      },
-    );
+            if (mounted) setState(() => _status = status);
+          },
+          onError: (_) {
+            if (mounted) setState(() => _status = FriendStatus.none);
+          },
+        );
   }
 
   @override
@@ -81,7 +81,9 @@ class _FriendActionButtonState extends State<FriendActionButton> {
     setState(() => _actionInProgress = true);
     try {
       final result = await _friendService.sendRequest(
-          widget.currentUserId, widget.targetUid);
+        widget.currentUserId,
+        widget.targetUid,
+      );
       if (mounted) {
         if (result == 'auto_accepted') _showSnackBar('You are now friends! 🎉');
         if (result == 'already_friends') _showSnackBar('Already friends.');
@@ -99,7 +101,9 @@ class _FriendActionButtonState extends State<FriendActionButton> {
     setState(() => _actionInProgress = true);
     try {
       await _friendService.revokeRequest(
-          widget.currentUserId, widget.targetUid);
+        widget.currentUserId,
+        widget.targetUid,
+      );
     } catch (e) {
       if (mounted) _showSnackBar('Failed to revoke.');
     } finally {
@@ -112,7 +116,9 @@ class _FriendActionButtonState extends State<FriendActionButton> {
     setState(() => _actionInProgress = true);
     try {
       final result = await _friendService.acceptRequest(
-          widget.currentUserId, widget.targetUid);
+        widget.currentUserId,
+        widget.targetUid,
+      );
       if (mounted && result == 'accepted') {
         _showSnackBar('Friend request accepted! 🎉');
       }
@@ -132,49 +138,66 @@ class _FriendActionButtonState extends State<FriendActionButton> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.undo_rounded, color: cs.error, size: 48),
-            const SizedBox(height: 16),
-            Text('Revoke Friend Request?',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.undo_rounded, color: cs.error, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Revoke Friend Request?',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text('Withdraw your friend request?',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Withdraw your friend request?',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurface.withValues(alpha: 0.6))),
-            const SizedBox(height: 24),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12))),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
+                  color: cs.onSurface.withValues(alpha: 0.6),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: cs.error,
-                      foregroundColor: cs.onError,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12))),
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _revokeRequest();
-                  },
-                  child: const Text('Revoke',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cs.error,
+                        foregroundColor: cs.onError,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _revokeRequest();
+                      },
+                      child: const Text(
+                        'Revoke',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ]),
-          ]),
+            ],
+          ),
         ),
       ),
     );
@@ -183,7 +206,9 @@ class _FriendActionButtonState extends State<FriendActionButton> {
   void _openChat() {
     final chatService = ChatService();
     final chatId = chatService.getChatId(
-        widget.currentUserId, widget.targetUid);
+      widget.currentUserId,
+      widget.targetUid,
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -203,34 +228,50 @@ class _FriendActionButtonState extends State<FriendActionButton> {
     switch (_status) {
       case FriendStatus.loading:
         return SizedBox(
-          width: 24, height: 24,
+          width: 24,
+          height: 24,
           child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
         );
       case FriendStatus.none:
         return _btn(
-            label: 'Add Friend', icon: Icons.person_add_rounded,
-            color: cs.primary, textColor: cs.onPrimary, onTap: _sendRequest);
+          label: 'Add Friend',
+          icon: Icons.person_add_rounded,
+          color: cs.primary,
+          textColor: cs.onPrimary,
+          onTap: _sendRequest,
+        );
       case FriendStatus.requestSent:
         return _btn(
-            label: 'Requested', icon: Icons.schedule_rounded,
-            color: cs.onSurface.withValues(alpha: 0.1),
-            textColor: cs.onSurface.withValues(alpha: 0.6),
-            onTap: _showRevokeDialog);
+          label: 'Requested',
+          icon: Icons.schedule_rounded,
+          color: cs.onSurface.withValues(alpha: 0.1),
+          textColor: cs.onSurface.withValues(alpha: 0.6),
+          onTap: _showRevokeDialog,
+        );
       case FriendStatus.requestReceived:
         return _btn(
-            label: 'Accept', icon: Icons.check_circle_outline_rounded,
-            color: cs.tertiary, textColor: cs.onTertiary,
-            onTap: _acceptRequest);
+          label: 'Accept',
+          icon: Icons.check_circle_outline_rounded,
+          color: cs.tertiary,
+          textColor: cs.onTertiary,
+          onTap: _acceptRequest,
+        );
       case FriendStatus.friends:
         return _btn(
-            label: 'Chat', icon: Icons.chat_bubble_rounded,
-            color: cs.primary, textColor: cs.onPrimary, onTap: _openChat);
+          label: 'Chat',
+          icon: Icons.chat_bubble_rounded,
+          color: cs.primary,
+          textColor: cs.onPrimary,
+          onTap: _openChat,
+        );
     }
   }
 
   Widget _btn({
-    required String label, required IconData icon,
-    required Color color, required Color textColor,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required Color textColor,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -243,26 +284,40 @@ class _FriendActionButtonState extends State<FriendActionButton> {
           vertical: widget.expanded ? 12 : 8,
         ),
         decoration: BoxDecoration(
-            color: color, borderRadius: BorderRadius.circular(12)),
-        child: _actionInProgress
-            ? SizedBox(width: 18, height: 18,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: textColor))
-            : Row(
-          mainAxisSize:
-          widget.expanded ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: textColor),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(label,
-                  style: TextStyle(color: textColor,
-                      fontWeight: FontWeight.w600, fontSize: 13),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
+          color: color,
+          borderRadius: BorderRadius.circular(12),
         ),
+        child: _actionInProgress
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: textColor,
+                ),
+              )
+            : Row(
+                mainAxisSize: widget.expanded
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: textColor),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

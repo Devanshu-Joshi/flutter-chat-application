@@ -136,7 +136,9 @@ class _UserProfileViewState extends State<UserProfileView> {
   void _openChat() {
     final chatService = ChatService();
     final chatId = chatService.getChatId(
-        widget.currentUserId, _userData['uid']);
+      widget.currentUserId,
+      _userData['uid'],
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute(

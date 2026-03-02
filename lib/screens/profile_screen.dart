@@ -32,6 +32,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Get the current theme mode from the parent MyApp state// This ensures the dropdown reflects the actual app state when the screen loads
+    _selectedThemeMode = MyApp.of(context).currentThemeMode;
+  }
+
   // ✅ Username Format Validation
   bool _validateUsernameFormat(String username) {
     final regex = RegExp(r'^[a-zA-Z0-9._]+$');
@@ -283,6 +290,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildThemeTile(ThemeData theme) {
+    // 1. Get the current theme directly from MyApp state
+    // This ensures the dropdown always shows what is actually active in the app
+    final currentAppTheme = MyApp.of(context).currentThemeMode;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -296,7 +307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text("Theme", style: theme.textTheme.bodySmall),
                 const SizedBox(height: 4),
                 DropdownButton<ThemeMode>(
-                  value: _selectedThemeMode,
+                  // 2. Use the value from MyApp instead of the local _selectedThemeMode
+                  value: currentAppTheme,
                   underline: const SizedBox(),
                   isDense: true,
                   items: const [
@@ -315,9 +327,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   onChanged: (ThemeMode? mode) {
                     if (mode == null) return;
-                    setState(() {
-                      _selectedThemeMode = mode;
-                    });
+                    // 3. Update the global state (this will trigger a rebuild
+                    // and update this dropdown automatically)
                     MyApp.of(context).updateTheme(mode);
                   },
                 ),

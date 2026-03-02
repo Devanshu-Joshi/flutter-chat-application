@@ -37,15 +37,15 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('users', arrayContains: _currentUser!.uid)
         .snapshots()
         .map((snapshot) {
-      try {
-        return snapshot.docs.firstWhere((doc) {
-          final users = List<String>.from(doc['users']);
-          return users.contains(widget.friendUid);
+          try {
+            return snapshot.docs.firstWhere((doc) {
+              final users = List<String>.from(doc['users']);
+              return users.contains(widget.friendUid);
+            });
+          } catch (e) {
+            return null;
+          }
         });
-      } catch (e) {
-        return null;
-      }
-    });
   }
 
   // ─── SEND MESSAGE ─────────────────────────────────────────────────────
@@ -63,8 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     for (var doc in relationshipQuery.docs) {
       final users = List<String>.from(doc['users']);
-      if (users.contains(widget.friendUid) &&
-          doc['type'] == 'friends') {
+      if (users.contains(widget.friendUid) && doc['type'] == 'friends') {
         areFriends = true;
         break;
       }
@@ -266,7 +265,7 @@ class _ChatScreenState extends State<ChatScreen> {
               showDate = true;
             } else {
               final nextData =
-              messages[index + 1].data() as Map<String, dynamic>;
+                  messages[index + 1].data() as Map<String, dynamic>;
               final nextTimestamp = nextData['timestamp'] as Timestamp?;
               if (timestamp != null && nextTimestamp != null) {
                 final current = timestamp.toDate();
@@ -283,11 +282,7 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 if (showDate && timestamp != null)
                   _buildDateSeparator(timestamp, Theme.of(context).colorScheme),
-                _MessageBubble(
-                  text: text,
-                  isMe: isMe,
-                  timestamp: timestamp,
-                ),
+                _MessageBubble(text: text, isMe: isMe, timestamp: timestamp),
               ],
             );
           },
@@ -334,11 +329,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ─── INPUT BAR ────────────────────────────────────────────────────────
-  Widget _buildInputBar(
-      ThemeData theme,
-      ColorScheme cs,
-      bool areFriends,
-      ) {
+  Widget _buildInputBar(ThemeData theme, ColorScheme cs, bool areFriends) {
     if (!areFriends) {
       return Container(
         padding: EdgeInsets.fromLTRB(
@@ -350,18 +341,13 @@ class _ChatScreenState extends State<ChatScreen> {
         decoration: BoxDecoration(
           color: cs.surface,
           border: Border(
-            top: BorderSide(
-              color: cs.onSurface.withValues(alpha: 0.08),
-            ),
+            top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)),
           ),
         ),
         child: Center(
           child: Text(
             "You are no longer friends",
-            style: TextStyle(
-              color: cs.error,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: cs.error, fontWeight: FontWeight.w600),
           ),
         ),
       );
@@ -378,9 +364,7 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: BoxDecoration(
         color: cs.surface,
         border: Border(
-          top: BorderSide(
-            color: cs.onSurface.withValues(alpha: 0.08),
-          ),
+          top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)),
         ),
       ),
       child: Row(
@@ -397,8 +381,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Type a message...',
                   border: InputBorder.none,
-                  contentPadding:
-                  EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
@@ -414,11 +400,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: cs.primary,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.send_rounded,
-                color: cs.onPrimary,
-                size: 20,
-              ),
+              child: Icon(Icons.send_rounded, color: cs.onPrimary, size: 20),
             ),
           ),
         ],
@@ -455,9 +437,7 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe
-              ? cs.primary
-              : cs.onSurface.withValues(alpha: 0.08),
+          color: isMe ? cs.primary : cs.onSurface.withValues(alpha: 0.08),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -466,8 +446,9 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Text(
               text,

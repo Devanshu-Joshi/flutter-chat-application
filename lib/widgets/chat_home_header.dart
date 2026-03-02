@@ -54,37 +54,37 @@ class ChatHomeHeader extends StatelessWidget {
               currentUser == null
                   ? const Text('User')
                   : StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(currentUser!.uid)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return Text(
-                      '...',
-                      style: TextStyle(
-                        fontSize: 26,
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    );
-                  }
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(currentUser!.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return Text(
+                            '...',
+                            style: TextStyle(
+                              fontSize: 26,
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          );
+                        }
 
-                  final data = snapshot.data!.data()
-                  as Map<String, dynamic>?;
+                        final data =
+                            snapshot.data!.data() as Map<String, dynamic>?;
 
-                  final name = data?['username'] ?? 'User';
+                        final name = data?['username'] ?? 'User';
 
-                  return Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 26,
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w700,
+                        return Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 26,
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ],
           ),
         ),
@@ -104,7 +104,9 @@ class ChatHomeHeader extends StatelessWidget {
           const SizedBox(width: 16),
           Icon(
             Icons.search,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -113,7 +115,9 @@ class ChatHomeHeader extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search conversations...',
                 hintStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.25),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.25),
                 ),
                 border: InputBorder.none,
               ),

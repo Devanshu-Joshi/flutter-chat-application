@@ -44,8 +44,7 @@ class FriendsScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: StreamBuilder<int>(
-        stream:
-        _friendService.incomingRequestCountStream(_currentUser!.uid),
+        stream: _friendService.incomingRequestCountStream(_currentUser!.uid),
         builder: (context, snapshot) {
           final count = snapshot.data ?? 0;
 
@@ -56,23 +55,23 @@ class FriendsScreen extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => FriendRequestsScreen(
-                      currentUserId: _currentUser!.uid,
-                    ),
+                    builder: (_) =>
+                        FriendRequestsScreen(currentUserId: _currentUser!.uid),
                   ),
                 );
               },
               child: Container(
-                padding:
-                const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 18,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
                   color: colorScheme.onSurface.withValues(alpha: 0.05),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.person_add_rounded,
-                        color: colorScheme.primary),
+                    Icon(Icons.person_add_rounded, color: colorScheme.primary),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Text(
@@ -87,7 +86,9 @@ class FriendsScreen extends StatelessWidget {
                     if (count > 0)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.error,
                           borderRadius: BorderRadius.circular(12),
@@ -102,10 +103,11 @@ class FriendsScreen extends StatelessWidget {
                         ),
                       ),
                     const SizedBox(width: 6),
-                    Icon(Icons.arrow_forward_ios_rounded,
-                        size: 16,
-                        color:
-                        colorScheme.onSurface.withValues(alpha: 0.5)),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 16,
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
                   ],
                 ),
               ),
@@ -171,8 +173,7 @@ class FriendsScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final userData =
-        snapshot.data!.data() as Map<String, dynamic>;
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
         final username = userData['username'] ?? 'User';
 
         return Padding(
@@ -202,12 +203,11 @@ class FriendsScreen extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 26,
-                        backgroundColor:
-                        colorScheme.primary.withValues(alpha: 0.15),
+                        backgroundColor: colorScheme.primary.withValues(
+                          alpha: 0.15,
+                        ),
                         child: Text(
-                          username.isNotEmpty
-                              ? username[0].toUpperCase()
-                              : '?',
+                          username.isNotEmpty ? username[0].toUpperCase() : '?',
                           style: TextStyle(
                             color: colorScheme.primary,
                             fontWeight: FontWeight.bold,
@@ -226,11 +226,15 @@ class FriendsScreen extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.chat_bubble_rounded,
-                            color: colorScheme.primary),
+                        icon: Icon(
+                          Icons.chat_bubble_rounded,
+                          color: colorScheme.primary,
+                        ),
                         onPressed: () {
                           final chatId = _chatService.getChatId(
-                              _currentUser!.uid, friend.otherUid);
+                            _currentUser!.uid,
+                            friend.otherUid,
+                          );
 
                           Navigator.of(context).push(
                             MaterialPageRoute(

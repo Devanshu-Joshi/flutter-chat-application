@@ -41,8 +41,8 @@ class ChatTile extends StatelessWidget {
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
           final userData = userSnapshot.data!.data() as Map<String, dynamic>;
 
-          name = userData['username'] ?? 'Unknown';   // ✅ FIXED
-          photoUrl = userData['photoUrl'];            // ✅ correct field
+          name = userData['username'] ?? 'Unknown'; // ✅ FIXED
+          photoUrl = userData['photoUrl']; // ✅ correct field
         }
 
         return TweenAnimationBuilder<double>(

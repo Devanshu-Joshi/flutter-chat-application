@@ -168,7 +168,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return SliverList(
             delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildLoadingItem(),
+              (context, index) => _buildLoadingItem(),
               childCount: 6,
             ),
           );
@@ -180,10 +180,9 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               child: Text(
                 'Something went wrong',
                 style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -210,10 +209,11 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               currentUserId: currentUser.uid,
               index: index,
               onTap: () {
-                final participants =
-                List<String>.from(data['participants'] ?? []);
+                final participants = List<String>.from(
+                  data['participants'] ?? [],
+                );
                 final friendUid = participants.firstWhere(
-                      (uid) => uid != currentUser.uid,
+                  (uid) => uid != currentUser.uid,
                   orElse: () => '',
                 );
 
@@ -224,20 +224,20 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                     .doc(friendUid)
                     .get()
                     .then((doc) {
-                  if (doc.exists && context.mounted) {
-                    final friendData = doc.data() as Map<String, dynamic>;
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ChatScreen(
-                          chatId: chatId,
-                          friendUid: friendUid,
-                          friendUsername:
-                          friendData['username'] ?? 'Unknown',
-                        ),
-                      ),
-                    );
-                  }
-                });
+                      if (doc.exists && context.mounted) {
+                        final friendData = doc.data() as Map<String, dynamic>;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(
+                              chatId: chatId,
+                              friendUid: friendUid,
+                              friendUsername:
+                                  friendData['username'] ?? 'Unknown',
+                            ),
+                          ),
+                        );
+                      }
+                    });
               },
             );
           }, childCount: docs.length),

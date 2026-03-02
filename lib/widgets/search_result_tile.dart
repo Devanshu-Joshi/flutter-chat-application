@@ -37,9 +37,10 @@ class SearchResultTile extends StatelessWidget {
               child: Text(
                 username.isNotEmpty ? username[0].toUpperCase() : '?',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: cs.primary),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -47,17 +48,24 @@ class SearchResultTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(username,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600, color: cs.onSurface),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    username,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
-                  Text('@$username',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurface.withValues(alpha: 0.45)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    '@$username',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -65,7 +73,7 @@ class SearchResultTile extends StatelessWidget {
             FriendActionButton(
               targetUid: uid,
               currentUserId: currentUserId,
-              targetUsername: username,          // ← ADDED
+              targetUsername: username, // ← ADDED
             ),
           ],
         ),
