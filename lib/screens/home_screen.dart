@@ -9,6 +9,7 @@ import 'package:chat_app/widgets/chat_home_header.dart';
 import 'package:chat_app/screens/friends_screen.dart';
 import 'package:chat_app/screens/search_screen.dart';
 import 'package:chat_app/screens/chat_screen.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -93,11 +94,72 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
   late AnimationController _floatingController;
   late AnimationController _pulseController;
   late AnimationController _shimmerController;
+
   String _searchQuery = "";
+  List<String> _matchedUserIds = [];
+  Timer? _debounce;
+
+  Widget _buildLoadingItem() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.06),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 180,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+
     _floatingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -119,12 +181,48 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
     _floatingController.dispose();
     _pulseController.dispose();
     _shimmerController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
+  /// 🔎 SEARCH USERS BY USERNAME PREFIX
+  Future<List<String>> _searchUserIds(String query) async {
+    if (query.isEmpty) return [];
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .orderBy('username')
+        .startAt([query])
+        .endAt([query + '\uf8ff'])
+        .limit(10)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.id).toList();
+  }
+
+  /// 🔎 SEARCH HANDLER WITH DEBOUNCE
   void _onSearchChanged(String? query) {
-    setState(() {
-      _searchQuery = (query ?? '').toLowerCase();
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      final text = (query ?? '').toLowerCase();
+
+      if (text.isEmpty) {
+        setState(() {
+          _searchQuery = "";
+          _matchedUserIds = [];
+        });
+        return;
+      }
+
+      final ids = await _searchUserIds(text);
+
+      if (!mounted) return;
+
+      setState(() {
+        _searchQuery = text;
+        _matchedUserIds = ids;
+      });
     });
   }
 
@@ -137,7 +235,6 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          /// 🔥 HEADER THAT HIDES ON SCROLL
           SliverToBoxAdapter(
             child: SafeArea(
               bottom: false,
@@ -149,27 +246,18 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
             ),
           ),
 
-          /// 🔥 CHAT CONTENT
           _buildChatSliver(currentUser),
         ],
       ),
     );
   }
 
+  /// 📩 DEFAULT CHAT STREAM
   Stream<QuerySnapshot>? _getChatStream(User? currentUser) {
     if (currentUser == null) return null;
 
-    final chatsRef = FirebaseFirestore.instance.collection('chats');
-
-    // 🔍 SEARCH MODE
-    if (_searchQuery.isNotEmpty) {
-      return chatsRef
-          .where('participantUsernames', arrayContains: _searchQuery)
-          .snapshots();
-    }
-
-    // 📨 DEFAULT MODE
-    return chatsRef
+    return FirebaseFirestore.instance
+        .collection('chats')
         .where('participants', arrayContains: currentUser.uid)
         .orderBy('lastMessageTime', descending: true)
         .snapshots();
@@ -186,34 +274,27 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildLoadingItem(),
+                  (context, index) => _buildLoadingItem(),
               childCount: 6,
             ),
           );
         }
 
         if (snapshot.hasError) {
-          return SliverFillRemaining(
-            child: Center(
-              child: Text(
-                'Something went wrong',
-                style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-            ),
+          return const SliverFillRemaining(
+            child: Center(child: Text('Something went wrong')),
           );
         }
 
-        final docs = snapshot.data?.docs
-        .where((doc) {
-          final participants = List<String>.from(doc['participants']);
-          return participants.contains(currentUser.uid);
-        })
-        .toList() ??
-    [];
+        final docs = snapshot.data?.docs.where((doc) {
+          if (_searchQuery.isEmpty) return true;
+          if (_matchedUserIds.isEmpty) return false;
+
+          final participants =
+          List<String>.from(doc['participants'] ?? []);
+
+          return participants.any(_matchedUserIds.contains);
+        }).toList() ?? [];
 
         if (docs.isEmpty) {
           return const SliverFillRemaining(
@@ -233,11 +314,11 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               currentUserId: currentUser.uid,
               index: index,
               onTap: () {
-                final participants = List<String>.from(
-                  data['participants'] ?? [],
-                );
+                final participants =
+                List<String>.from(data['participants'] ?? []);
+
                 final friendUid = participants.firstWhere(
-                  (uid) => uid != currentUser.uid,
+                      (uid) => uid != currentUser.uid,
                   orElse: () => '',
                 );
 
@@ -248,79 +329,26 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
                     .doc(friendUid)
                     .get()
                     .then((doc) {
-                      if (doc.exists && context.mounted) {
-                        final friendData = doc.data() as Map<String, dynamic>;
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChatScreen(
-                              chatId: chatId,
-                              friendUid: friendUid,
-                              friendUsername:
-                                  friendData['username'] ?? 'Unknown',
-                            ),
-                          ),
-                        );
-                      }
-                    });
+                  if (doc.exists && context.mounted) {
+                    final friendData = doc.data() as Map<String, dynamic>;
+
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatId: chatId,
+                          friendUid: friendUid,
+                          friendUsername:
+                          friendData['username'] ?? 'Unknown',
+                        ),
+                      ),
+                    );
+                  }
+                });
               },
             );
           }, childCount: docs.length),
         );
       },
-    );
-  }
-
-  Widget _buildLoadingItem() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.06),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 120,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 180,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
