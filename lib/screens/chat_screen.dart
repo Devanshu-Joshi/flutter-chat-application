@@ -65,11 +65,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       String messageId, Map<String, String> reactions, bool isMe) {
     _removeEmojiOverlay();
 
-    final key = _messageKeys[messageId];
-    if (key?.currentContext == null) return;
+    if (!mounted) return;
 
-    final RenderBox renderBox =
-    key!.currentContext!.findRenderObject() as RenderBox;
+    final key = _messageKeys[messageId];
+    if (key?.currentContext == null) {
+      debugPrint('No context for message: $messageId');
+      return;
+    }
+
+    final renderObject = key!.currentContext!.findRenderObject();
+    if (renderObject == null || renderObject is! RenderBox || !renderObject.attached) {
+      debugPrint('RenderBox not ready for message: $messageId');
+      return;
+    }
+
+    final RenderBox renderBox = renderObject;
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
 
@@ -77,31 +87,41 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       builder: (context) {
         final cs = Theme.of(context).colorScheme;
         final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
 
-        // Calculate position
+        // Calculate horizontal position
+        const pickerWidth = 240.0;
         double left;
         if (isMe) {
-          // Right-aligned message: position picker to the left
-          left = position.dx + size.width - 230;
+          left = position.dx + size.width - pickerWidth;
           if (left < 16) left = 16;
         } else {
-          // Left-aligned message: position picker to the right
           left = position.dx;
-          if (left + 230 > screenWidth - 16) {
-            left = screenWidth - 230 - 16;
+          if (left + pickerWidth > screenWidth - 16) {
+            left = screenWidth - pickerWidth - 16;
           }
         }
 
-        // Make sure top position is not negative
-        double top = position.dy - 60;
-        if (top < 80) top = position.dy + size.height + 8;
+        // Calculate vertical position (above message, or below if no space)
+        const pickerHeight = 56.0;
+        double top = position.dy - pickerHeight - 8;
+
+        // If would go above screen, show below the message
+        if (top < MediaQuery.of(context).padding.top + 60) {
+          top = position.dy + size.height + 8;
+        }
+
+        // If would go below screen, clamp it
+        if (top + pickerHeight > screenHeight - 100) {
+          top = screenHeight - pickerHeight - 100;
+        }
 
         return Stack(
           children: [
-            // Tap anywhere to dismiss
+            // Full screen tap to dismiss
             Positioned.fill(
               child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
+                behavior: HitTestBehavior.opaque,
                 onTap: () {
                   _removeEmojiOverlay();
                   _clearSelection();
@@ -115,6 +135,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               top: top,
               child: Material(
                 color: Colors.transparent,
+                elevation: 8,
                 child: _EmojiReactionPicker(
                   reactions: reactions,
                   currentUserId: _currentUser!.uid,
@@ -131,7 +152,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       },
     );
 
-    Overlay.of(context).insert(_emojiOverlayEntry!);
+    try {
+      Overlay.of(context).insert(_emojiOverlayEntry!);
+    } catch (e) {
+      debugPrint('Failed to insert overlay: $e');
+      _emojiOverlayEntry = null;
+    }
   }
 
   void _removeEmojiOverlay() {
@@ -148,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _removeEmojiOverlay();
 
     final deletedForEveryone = data['deletedForEveryone'] == true;
-    if (deletedForEveryone) return; // Can't select deleted messages
+    if (deletedForEveryone) return;
 
     setState(() {
       _selectedMessageIds.clear();
@@ -157,13 +183,49 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       _directSelectedMessageId = messageId;
     });
 
-    // Show emoji overlay after state update
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted && _wasDirectSelection && _directSelectedMessageId == messageId) {
-        final reactions = Map<String, String>.from(data['reactions'] ?? {});
-        _showEmojiOverlay(messageId, reactions, isMe);
-      }
-    });
+    // Store data for showing overlay
+    final reactions = Map<String, String>.from(data['reactions'] ?? {});
+
+    // Try showing overlay with retries
+    _tryShowEmojiOverlay(messageId, reactions, isMe, retries: 5);
+  }
+
+  void _tryShowEmojiOverlay(
+      String messageId,
+      Map<String, String> reactions,
+      bool isMe, {
+        int retries = 5,
+      }) {
+    if (retries <= 0) {
+      debugPrint('Failed to show emoji overlay after all retries');
+      return;
+    }
+
+    if (!mounted) return;
+    if (!_wasDirectSelection || _directSelectedMessageId != messageId) return;
+
+    final key = _messageKeys[messageId];
+
+    // Check if key and context are ready
+    if (key == null || key.currentContext == null) {
+      // Retry after a frame
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
+      });
+      return;
+    }
+
+    // Check if render object is available
+    final renderObject = key.currentContext!.findRenderObject();
+    if (renderObject == null || !renderObject.attached) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
+      });
+      return;
+    }
+
+    // All good, show the overlay
+    _showEmojiOverlay(messageId, reactions, isMe);
   }
 
   void _onMessageTap(String messageId) {
@@ -901,6 +963,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     required ColorScheme cs,
     required List<QueryDocumentSnapshot> allMessages,
   }) {
+    // Create key FIRST - before any returns or conditionals
+    if (!_messageKeys.containsKey(messageId)) {
+      _messageKeys[messageId] = GlobalKey();
+    }
+    final messageKey = _messageKeys[messageId]!;
+
     final isSelected = _selectedMessageIds.contains(messageId);
     final text = data['text'] ?? '';
     final deletedForEveryone = data['deletedForEveryone'] == true;
@@ -910,11 +978,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final editedAt = data['editedAt'] as Timestamp?;
     final senderId = data['senderId'] as String? ?? '';
 
-    // Create a key for this message
-    _messageKeys[messageId] ??= GlobalKey();
-
     return GestureDetector(
-      key: _messageKeys[messageId],
+      key: messageKey,  // Use the variable, not the map lookup
       onLongPress: () => _onMessageLongPress(messageId, data, isMe),
       onTap: () {
         if (_selectedMessageIds.isNotEmpty) {
