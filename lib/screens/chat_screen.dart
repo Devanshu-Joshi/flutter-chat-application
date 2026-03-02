@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math' as math;
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -45,8 +44,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   // Reaction emojis
   final List<String> _reactionEmojis = ['❤️', '😂', '😮', '😢', '👍'];
 
+  // Overlay for emoji picker
+  OverlayEntry? _emojiOverlayEntry;
+  final Map<String, GlobalKey> _messageKeys = {};
+
   @override
   void dispose() {
+    _removeEmojiOverlay();
     _messageController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
@@ -54,21 +58,118 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // EMOJI OVERLAY METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _showEmojiOverlay(
+      String messageId, Map<String, String> reactions, bool isMe) {
+    _removeEmojiOverlay();
+
+    final key = _messageKeys[messageId];
+    if (key?.currentContext == null) return;
+
+    final RenderBox renderBox =
+    key!.currentContext!.findRenderObject() as RenderBox;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    _emojiOverlayEntry = OverlayEntry(
+      builder: (context) {
+        final cs = Theme.of(context).colorScheme;
+        final screenWidth = MediaQuery.of(context).size.width;
+
+        // Calculate position
+        double left;
+        if (isMe) {
+          // Right-aligned message: position picker to the left
+          left = position.dx + size.width - 230;
+          if (left < 16) left = 16;
+        } else {
+          // Left-aligned message: position picker to the right
+          left = position.dx;
+          if (left + 230 > screenWidth - 16) {
+            left = screenWidth - 230 - 16;
+          }
+        }
+
+        // Make sure top position is not negative
+        double top = position.dy - 60;
+        if (top < 80) top = position.dy + size.height + 8;
+
+        return Stack(
+          children: [
+            // Tap anywhere to dismiss
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  _removeEmojiOverlay();
+                  _clearSelection();
+                },
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            // Emoji picker
+            Positioned(
+              left: left,
+              top: top,
+              child: Material(
+                color: Colors.transparent,
+                child: _EmojiReactionPicker(
+                  reactions: reactions,
+                  currentUserId: _currentUser!.uid,
+                  emojis: _reactionEmojis,
+                  onEmojiSelected: (emoji) {
+                    _removeEmojiOverlay();
+                    _addReaction(messageId, emoji);
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_emojiOverlayEntry!);
+  }
+
+  void _removeEmojiOverlay() {
+    _emojiOverlayEntry?.remove();
+    _emojiOverlayEntry = null;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // SELECTION LOGIC
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void _onMessageLongPress(String messageId) {
+  void _onMessageLongPress(String messageId, Map<String, dynamic> data, bool isMe) {
     HapticFeedback.mediumImpact();
+    _removeEmojiOverlay();
+
+    final deletedForEveryone = data['deletedForEveryone'] == true;
+    if (deletedForEveryone) return; // Can't select deleted messages
+
     setState(() {
       _selectedMessageIds.clear();
       _selectedMessageIds.add(messageId);
       _wasDirectSelection = true;
       _directSelectedMessageId = messageId;
     });
+
+    // Show emoji overlay after state update
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted && _wasDirectSelection && _directSelectedMessageId == messageId) {
+        final reactions = Map<String, String>.from(data['reactions'] ?? {});
+        _showEmojiOverlay(messageId, reactions, isMe);
+      }
+    });
   }
 
   void _onMessageTap(String messageId) {
     if (_selectedMessageIds.isEmpty) return;
+
+    _removeEmojiOverlay();
 
     setState(() {
       if (_selectedMessageIds.contains(messageId)) {
@@ -84,6 +185,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _clearSelection() {
+    _removeEmojiOverlay();
     setState(() {
       _selectedMessageIds.clear();
       _wasDirectSelection = false;
@@ -224,15 +326,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     }
 
     try {
-      await FirebaseFirestore.instance
+      final messageRef = FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatId)
           .collection('messages')
-          .doc(_editingMessageId)
-          .update({
-        'text': text,
-        'editedAt': FieldValue.serverTimestamp(),
-      });
+          .doc(_editingMessageId);
+
+      final doc = await messageRef.get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        await messageRef.update({
+          'text': text,
+          'editedAt': FieldValue.serverTimestamp(),
+          'senderId': data['senderId'], // Preserve senderId for rules
+        });
+      }
 
       _cancelEdit();
       _showSnackBar('Message edited');
@@ -250,17 +358,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _startEdit(String messageId, String text) {
+    _removeEmojiOverlay();
     setState(() {
       _editingMessageId = messageId;
       _originalEditText = text;
       _messageController.text = text;
       _replyingTo = null;
-      _clearSelection();
+      _selectedMessageIds.clear();
+      _wasDirectSelection = false;
+      _directSelectedMessageId = null;
     });
     _inputFocusNode.requestFocus();
   }
 
   void _startReply(String messageId, String text, String senderId) {
+    _removeEmojiOverlay();
     setState(() {
       _replyingTo = {
         'messageId': messageId,
@@ -268,7 +380,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         'senderId': senderId,
       };
       _editingMessageId = null;
-      _clearSelection();
+      _selectedMessageIds.clear();
+      _wasDirectSelection = false;
+      _directSelectedMessageId = null;
     });
     _inputFocusNode.requestFocus();
   }
@@ -352,11 +466,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _showDeleteDialog() {
-    final hasOwnMessage = _selectedMessageIds.any((id) {
-      // We'll check ownership in the dialog
-      return true;
-    });
-
     showDialog(
       context: context,
       builder: (ctx) => _DeleteDialog(
@@ -537,9 +646,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       value: 'delete',
       child: Row(
         children: [
-          Icon(Icons.delete, size: 20, color: Theme.of(context).colorScheme.error),
+          Icon(Icons.delete, size: 20,
+              color: Theme.of(context).colorScheme.error),
           const SizedBox(width: 12),
-          Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text('Delete',
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ],
       ),
     ));
@@ -548,6 +659,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _handleMenuAction(String action) {
+    _removeEmojiOverlay();
     switch (action) {
       case 'reply':
         _handleReplyFromMenu();
@@ -577,6 +689,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     if (doc.exists) {
       final data = doc.data()!;
+      if (data['deletedForEveryone'] == true) {
+        _showSnackBar('Cannot reply to deleted message');
+        _clearSelection();
+        return;
+      }
       _startReply(messageId, data['text'] ?? '', data['senderId'] ?? '');
     }
   }
@@ -604,13 +721,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     if (doc.exists) {
       final data = doc.data()!;
-      if (data['senderId'] == _currentUser!.uid &&
-          data['deletedForEveryone'] != true) {
-        _startEdit(messageId, data['text'] ?? '');
-      } else {
+      if (data['senderId'] != _currentUser!.uid) {
         _showSnackBar('You can only edit your own messages');
         _clearSelection();
+        return;
       }
+      if (data['deletedForEveryone'] == true) {
+        _showSnackBar('Cannot edit deleted message');
+        _clearSelection();
+        return;
+      }
+      _startEdit(messageId, data['text'] ?? '');
     }
   }
 
@@ -644,53 +765,61 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           return _buildEmptyState(cs);
         }
 
-        return ListView.builder(
-          controller: _scrollController,
-          reverse: true,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          physics: const BouncingScrollPhysics(),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final doc = messages[index];
-            final data = doc.data() as Map<String, dynamic>;
-            final messageId = doc.id;
-            final isMe = data['senderId'] == _currentUser?.uid;
-            final timestamp = data['timestamp'] as Timestamp?;
+        return GestureDetector(
+          onTap: () {
+            // Tap on empty area clears selection
+            if (_selectedMessageIds.isNotEmpty) {
+              _clearSelection();
+            }
+          },
+          child: ListView.builder(
+            controller: _scrollController,
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            physics: const BouncingScrollPhysics(),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              final doc = messages[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final messageId = doc.id;
+              final isMe = data['senderId'] == _currentUser?.uid;
+              final timestamp = data['timestamp'] as Timestamp?;
 
-            // Date separator logic
-            bool showDate = false;
-            if (index == messages.length - 1) {
-              showDate = true;
-            } else {
-              final nextData =
-              messages[index + 1].data() as Map<String, dynamic>;
-              final nextTimestamp = nextData['timestamp'] as Timestamp?;
-              if (timestamp != null && nextTimestamp != null) {
-                final current = timestamp.toDate();
-                final next = nextTimestamp.toDate();
-                if (current.day != next.day ||
-                    current.month != next.month ||
-                    current.year != next.year) {
-                  showDate = true;
+              // Date separator logic
+              bool showDate = false;
+              if (index == messages.length - 1) {
+                showDate = true;
+              } else {
+                final nextData =
+                messages[index + 1].data() as Map<String, dynamic>;
+                final nextTimestamp = nextData['timestamp'] as Timestamp?;
+                if (timestamp != null && nextTimestamp != null) {
+                  final current = timestamp.toDate();
+                  final next = nextTimestamp.toDate();
+                  if (current.day != next.day ||
+                      current.month != next.month ||
+                      current.year != next.year) {
+                    showDate = true;
+                  }
                 }
               }
-            }
 
-            return Column(
-              children: [
-                if (showDate && timestamp != null)
-                  _buildDateSeparator(timestamp, cs),
-                _buildMessageItem(
-                  messageId: messageId,
-                  data: data,
-                  isMe: isMe,
-                  timestamp: timestamp,
-                  cs: cs,
-                  allMessages: allDocs,
-                ),
-              ],
-            );
-          },
+              return Column(
+                children: [
+                  if (showDate && timestamp != null)
+                    _buildDateSeparator(timestamp, cs),
+                  _buildMessageItem(
+                    messageId: messageId,
+                    data: data,
+                    isMe: isMe,
+                    timestamp: timestamp,
+                    cs: cs,
+                    allMessages: allDocs,
+                  ),
+                ],
+              );
+            },
+          ),
         );
       },
     );
@@ -773,9 +902,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     required List<QueryDocumentSnapshot> allMessages,
   }) {
     final isSelected = _selectedMessageIds.contains(messageId);
-    final showEmojiPickerForThis = _showEmojiPicker &&
-        _directSelectedMessageId == messageId;
-
     final text = data['text'] ?? '';
     final deletedForEveryone = data['deletedForEveryone'] == true;
     final deletedBy = data['deletedBy'] as String?;
@@ -784,16 +910,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     final editedAt = data['editedAt'] as Timestamp?;
     final senderId = data['senderId'] as String? ?? '';
 
+    // Create a key for this message
+    _messageKeys[messageId] ??= GlobalKey();
+
     return GestureDetector(
-      onLongPress: () => _onMessageLongPress(messageId),
+      key: _messageKeys[messageId],
+      onLongPress: () => _onMessageLongPress(messageId, data, isMe),
       onTap: () {
         if (_selectedMessageIds.isNotEmpty) {
           _onMessageTap(messageId);
         }
       },
       child: Dismissible(
-        key: Key(messageId),
-        direction: DismissDirection.startToEnd,
+        key: Key('dismiss_$messageId'),
+        direction: deletedForEveryone
+            ? DismissDirection.none
+            : DismissDirection.startToEnd,
         confirmDismiss: (_) async {
           if (!deletedForEveryone) {
             _startReply(messageId, text, senderId);
@@ -809,39 +941,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             size: 24,
           ),
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            _MessageBubble(
-              messageId: messageId,
-              text: text,
-              isMe: isMe,
-              timestamp: timestamp,
-              isSelected: isSelected,
-              deletedForEveryone: deletedForEveryone,
-              deletedBy: deletedBy,
-              currentUserId: _currentUser!.uid,
-              reactions: reactions,
-              replyTo: replyTo,
-              editedAt: editedAt,
-              friendUsername: widget.friendUsername,
-              onReplyTap: replyTo != null
-                  ? () => _scrollToMessage(replyTo['messageId'], allMessages)
-                  : null,
-            ),
-            if (showEmojiPickerForThis)
-              Positioned(
-                top: -50,
-                left: isMe ? null : 0,
-                right: isMe ? 0 : null,
-                child: _EmojiReactionPicker(
-                  reactions: reactions,
-                  currentUserId: _currentUser!.uid,
-                  emojis: _reactionEmojis,
-                  onEmojiSelected: (emoji) => _addReaction(messageId, emoji),
-                ),
-              ),
-          ],
+        child: _MessageBubble(
+          messageId: messageId,
+          text: text,
+          isMe: isMe,
+          timestamp: timestamp,
+          isSelected: isSelected,
+          deletedForEveryone: deletedForEveryone,
+          deletedBy: deletedBy,
+          currentUserId: _currentUser!.uid,
+          reactions: reactions,
+          replyTo: replyTo,
+          editedAt: editedAt,
+          friendUsername: widget.friendUsername,
+          onReplyTap: replyTo != null
+              ? () => _scrollToMessage(replyTo['messageId'], allMessages)
+              : null,
         ),
       ),
     );
@@ -1031,6 +1146,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               child: TextField(
                 controller: _messageController,
                 focusNode: _inputFocusNode,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: _editingMessageId != null
                       ? 'Edit message...'
@@ -1056,8 +1172,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 color: _editingMessageId != null ? cs.tertiary : cs.primary,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                _editingMessageId != null ? Icons.check : Icons.send_rounded,
+              child: _isSending
+                  ? Padding(
+                padding: const EdgeInsets.all(13),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.onPrimary,
+                ),
+              )
+                  : Icon(
+                _editingMessageId != null
+                    ? Icons.check
+                    : Icons.send_rounded,
                 color: cs.onPrimary,
                 size: 20,
               ),
@@ -1189,9 +1315,7 @@ class _MessageBubble extends StatelessWidget {
                     ? (isMe
                     ? cs.primary.withOpacity(0.8)
                     : cs.onSurface.withOpacity(0.15))
-                    : (isMe
-                    ? cs.primary
-                    : cs.onSurface.withOpacity(0.08)),
+                    : (isMe ? cs.primary : cs.onSurface.withOpacity(0.08)),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
@@ -1340,19 +1464,20 @@ class _EmojiReactionPicker extends StatelessWidget {
     final myReaction = reactions[currentUserId];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: cs.shadow.withOpacity(0.2),
-            blurRadius: 12,
+            color: cs.shadow.withOpacity(0.25),
+            blurRadius: 16,
             offset: const Offset(0, 4),
           ),
         ],
         border: Border.all(
-          color: cs.onSurface.withOpacity(0.08),
+          color: cs.onSurface.withOpacity(0.1),
+          width: 1,
         ),
       ),
       child: Row(
@@ -1360,10 +1485,12 @@ class _EmojiReactionPicker extends StatelessWidget {
         children: emojis.map((emoji) {
           final isSelected = myReaction == emoji;
           return GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => onEmojiSelected(emoji),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.all(6),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: isSelected
                     ? cs.primary.withOpacity(0.2)
@@ -1373,7 +1500,7 @@ class _EmojiReactionPicker extends StatelessWidget {
               child: Text(
                 emoji,
                 style: TextStyle(
-                  fontSize: isSelected ? 24 : 22,
+                  fontSize: isSelected ? 26 : 24,
                 ),
               ),
             ),
@@ -1447,9 +1574,15 @@ class _DeleteDialogState extends State<_DeleteDialog> {
             .doc(widget.chatId)
             .collection('messages')
             .doc(id);
-        batch.update(ref, {
-          'deletedFor': FieldValue.arrayUnion([widget.currentUserId])
-        });
+
+        final doc = await ref.get();
+        if (doc.exists) {
+          final data = doc.data()!;
+          batch.update(ref, {
+            'deletedFor': FieldValue.arrayUnion([widget.currentUserId]),
+            'senderId': data['senderId'], // Preserve for rules
+          });
+        }
       }
       await batch.commit();
       widget.onComplete();
@@ -1468,21 +1601,21 @@ class _DeleteDialogState extends State<_DeleteDialog> {
     try {
       final batch = FirebaseFirestore.instance.batch();
       for (final id in widget.selectedIds) {
-        final doc = await FirebaseFirestore.instance
+        final ref = FirebaseFirestore.instance
             .collection('chats')
             .doc(widget.chatId)
             .collection('messages')
-            .doc(id)
-            .get();
+            .doc(id);
 
-        // Only delete for everyone if it's own message
+        final doc = await ref.get();
         if (doc.exists && doc.data()?['senderId'] == widget.currentUserId) {
-          batch.update(doc.reference, {
+          batch.update(ref, {
             'deletedForEveryone': true,
             'deletedBy': widget.currentUserId,
             'text': '', // Clear text for security
             'reactions': {}, // Clear reactions
             'replyTo': null, // Clear reply reference
+            'senderId': doc.data()!['senderId'], // Preserve for rules
           });
         }
       }
@@ -1521,7 +1654,10 @@ class _DeleteDialogState extends State<_DeleteDialog> {
             ),
             const SizedBox(height: 24),
             if (_isLoading)
-              const CircularProgressIndicator()
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              )
             else
               Column(
                 children: [
