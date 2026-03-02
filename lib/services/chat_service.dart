@@ -25,4 +25,65 @@ class ChatService {
     // No need to create it here
     return chatId;
   }
+
+  /// Migration function to populate usernames in existing chats
+  Future<void> migrateChats() async {
+    final chats = await _db.collection('chats').get();
+
+    for (var chat in chats.docs) {
+      final data = chat.data();
+
+      if (data.containsKey('participantUsernames')) continue;
+
+      final participants = List<String>.from(data['participants'] ?? []);
+      List<String> usernames = [];
+
+      for (var uid in participants) {
+        final userDoc = await _db.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+          usernames.add(
+            (userDoc['username'] as String? ?? 'Unknown').toLowerCase(),
+          );
+        } else {
+          usernames.add('unknown');
+        }
+      }
+
+      if (usernames.isNotEmpty) {
+        await chat.reference.update({
+          'participantUsernames': usernames,
+        });
+      }
+    }
+  }
+
+  /// Update all chats containing a user when they change their username
+  Future<void> updateUsernameEverywhere(
+    String uid,
+    String newUsername,
+  ) async {
+    final chats = await _db
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .get();
+
+    for (var chat in chats.docs) {
+      final data = chat.data();
+      List<String> usernames = List<String>.from(data['participantUsernames'] ?? []);
+      List<String> participants = List<String>.from(data['participants'] ?? []);
+
+      final index = participants.indexOf(uid);
+      if (index != -1) {
+        // Ensure the list is long enough, though it should be if participants matches
+        while (usernames.length <= index) {
+          usernames.add('unknown');
+        }
+        usernames[index] = newUsername.toLowerCase();
+
+        await chat.reference.update({
+          'participantUsernames': usernames,
+        });
+      }
+    }
+  }
 }

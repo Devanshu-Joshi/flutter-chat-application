@@ -1,5 +1,6 @@
 import 'package:chat_app/screens/home_screen.dart';
 import 'package:chat_app/screens/login_screen.dart';
+import 'package:chat_app/services/chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -47,6 +48,7 @@ class MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _loadTheme();
+    ChatService().migrateChats();
   }
 
   Future<void> _loadTheme() async {

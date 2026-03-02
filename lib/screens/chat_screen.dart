@@ -88,8 +88,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final chatDoc = await chatRef.get();
       if (!chatDoc.exists) {
+        // Fetch both users' usernames to store in chat metadata for search
+        final usersRef = FirebaseFirestore.instance.collection('users');
+        final currentUserDoc = await usersRef.doc(_currentUser!.uid).get();
+        final friendDoc = await usersRef.doc(widget.friendUid).get();
+
+        final currentUsername = currentUserDoc['username'] as String? ?? 'Unknown';
+        final friendUsername = friendDoc['username'] as String? ?? widget.friendUsername;
+
         await chatRef.set({
           'participants': [_currentUser!.uid, widget.friendUid],
+          'participantUsernames': [
+            currentUsername.toLowerCase(),
+            friendUsername.toLowerCase(),
+          ],
           'lastMessage': text,
           'lastMessageTime': now,
           'lastMessageSender': _currentUser!.uid,

@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:chat_app/services/friend_service.dart';
-import 'package:chat_app/screens/friend_requests_screen.dart';
 
 class ChatHomeHeader extends StatelessWidget {
   final User? currentUser;
   final Stream<QuerySnapshot>? chatStream;
+  final Function(String?) onSearchChanged;
   final FriendService _friendService = FriendService();
 
   ChatHomeHeader({
     super.key,
     required this.currentUser,
     required this.chatStream,
+    required this.onSearchChanged,
   });
 
   @override
@@ -111,6 +112,7 @@ class ChatHomeHeader extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
+              onChanged: (value) => onSearchChanged(value),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search conversations...',

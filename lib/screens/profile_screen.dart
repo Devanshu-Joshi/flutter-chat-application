@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:chat_app/main.dart';
+import 'package:chat_app/services/chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,7 +36,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Get the current theme mode from the parent MyApp state// This ensures the dropdown reflects the actual app state when the screen loads
+    // Get the current theme mode from the parent MyApp state
+    // This ensures the dropdown reflects the actual app state when the screen loads
     _selectedThemeMode = MyApp.of(context).currentThemeMode;
   }
 
@@ -145,6 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       batch.update(userRef, {"username": newUsername});
 
       await batch.commit();
+
+      // ✅ Update username in all chat metadata for searchable conversations
+      await ChatService().updateUsernameEverywhere(user!.uid, newUsername);
 
       if (!mounted) return;
 

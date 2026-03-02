@@ -93,6 +93,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
   late AnimationController _floatingController;
   late AnimationController _pulseController;
   late AnimationController _shimmerController;
+  String _searchQuery = "";
 
   @override
   void initState() {
@@ -121,6 +122,12 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
     super.dispose();
   }
 
+  void _onSearchChanged(String? query) {
+    setState(() {
+      _searchQuery = (query ?? '').toLowerCase();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -137,6 +144,7 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
               child: ChatHomeHeader(
                 currentUser: currentUser,
                 chatStream: _getChatStream(currentUser),
+                onSearchChanged: _onSearchChanged,
               ),
             ),
           ),
@@ -150,8 +158,18 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
 
   Stream<QuerySnapshot>? _getChatStream(User? currentUser) {
     if (currentUser == null) return null;
-    return FirebaseFirestore.instance
-        .collection('chats')
+
+    final chatsRef = FirebaseFirestore.instance.collection('chats');
+
+    // 🔍 SEARCH MODE
+    if (_searchQuery.isNotEmpty) {
+      return chatsRef
+          .where('participantUsernames', arrayContains: _searchQuery)
+          .snapshots();
+    }
+
+    // 📨 DEFAULT MODE
+    return chatsRef
         .where('participants', arrayContains: currentUser.uid)
         .orderBy('lastMessageTime', descending: true)
         .snapshots();
@@ -189,7 +207,13 @@ class _ChatHomeBodyState extends State<ChatHomeBody>
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs
+        .where((doc) {
+          final participants = List<String>.from(doc['participants']);
+          return participants.contains(currentUser.uid);
+        })
+        .toList() ??
+    [];
 
         if (docs.isEmpty) {
           return const SliverFillRemaining(
