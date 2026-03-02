@@ -19,27 +19,34 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
+class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final _currentUser = FirebaseAuth.instance.currentUser;
 
-  // Selection state
-  final Set<String> _selectedMessageIds = {};
-  bool _wasDirectSelection = false;
-  String? _directSelectedMessageId;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CACHED STREAMS - Created once, not on every build
+  // ═══════════════════════════════════════════════════════════════════════════
+  late final Stream<QuerySnapshot> _messagesStream;
+  late final Stream<DocumentSnapshot?> _friendshipStream;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SELECTION STATE - Using ValueNotifier to avoid full rebuilds
+  // ═══════════════════════════════════════════════════════════════════════════
+  final ValueNotifier<Set<String>> _selectedMessageIds = ValueNotifier({});
+  final ValueNotifier<bool> _wasDirectSelection = ValueNotifier(false);
+  final ValueNotifier<String?> _directSelectedMessageId = ValueNotifier(null);
 
   // Reply state
-  Map<String, dynamic>? _replyingTo;
+  final ValueNotifier<Map<String, dynamic>?> _replyingTo = ValueNotifier(null);
 
   // Edit state
-  String? _editingMessageId;
+  final ValueNotifier<String?> _editingMessageId = ValueNotifier(null);
   String? _originalEditText;
 
   // UI state
   bool _isSending = false;
-  final GlobalKey _menuButtonKey = GlobalKey();
 
   // Reaction emojis
   final List<String> _reactionEmojis = ['❤️', '😂', '😮', '😢', '👍'];
@@ -49,17 +56,85 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final Map<String, GlobalKey> _messageKeys = {};
 
   @override
+  void initState() {
+    super.initState();
+    _initStreams();
+  }
+
+  void _initStreams() {
+    // Messages stream - created ONCE
+    _messagesStream = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+
+    // Friendship stream - created ONCE
+    _friendshipStream = FirebaseFirestore.instance
+        .collection('relationships')
+        .where('users', arrayContains: _currentUser!.uid)
+        .snapshots()
+        .map((snapshot) {
+      try {
+        return snapshot.docs.firstWhere((doc) {
+          final users = List<String>.from(doc['users']);
+          return users.contains(widget.friendUid);
+        });
+      } catch (e) {
+        return null;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _removeEmojiOverlay();
     _messageController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
+    _selectedMessageIds.dispose();
+    _wasDirectSelection.dispose();
+    _directSelectedMessageId.dispose();
+    _replyingTo.dispose();
+    _editingMessageId.dispose();
     super.dispose();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // EMOJI OVERLAY METHODS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  void _tryShowEmojiOverlay(
+      String messageId,
+      Map<String, String> reactions,
+      bool isMe, {
+        int retries = 5,
+      }) {
+    if (retries <= 0) return;
+    if (!mounted) return;
+    if (!_wasDirectSelection.value ||
+        _directSelectedMessageId.value != messageId) return;
+
+    final key = _messageKeys[messageId];
+
+    if (key == null || key.currentContext == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
+      });
+      return;
+    }
+
+    final renderObject = key.currentContext!.findRenderObject();
+    if (renderObject == null || !renderObject.attached) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
+      });
+      return;
+    }
+
+    _showEmojiOverlay(messageId, reactions, isMe);
+  }
 
   void _showEmojiOverlay(
       String messageId, Map<String, String> reactions, bool isMe) {
@@ -68,14 +143,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     if (!mounted) return;
 
     final key = _messageKeys[messageId];
-    if (key?.currentContext == null) {
-      debugPrint('No context for message: $messageId');
-      return;
-    }
+    if (key?.currentContext == null) return;
 
     final renderObject = key!.currentContext!.findRenderObject();
-    if (renderObject == null || renderObject is! RenderBox || !renderObject.attached) {
-      debugPrint('RenderBox not ready for message: $messageId');
+    if (renderObject == null ||
+        renderObject is! RenderBox ||
+        !renderObject.attached) {
       return;
     }
 
@@ -89,7 +162,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         final screenWidth = MediaQuery.of(context).size.width;
         final screenHeight = MediaQuery.of(context).size.height;
 
-        // Calculate horizontal position
         const pickerWidth = 240.0;
         double left;
         if (isMe) {
@@ -102,23 +174,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           }
         }
 
-        // Calculate vertical position (above message, or below if no space)
         const pickerHeight = 56.0;
         double top = position.dy - pickerHeight - 8;
 
-        // If would go above screen, show below the message
         if (top < MediaQuery.of(context).padding.top + 60) {
           top = position.dy + size.height + 8;
         }
 
-        // If would go below screen, clamp it
         if (top + pickerHeight > screenHeight - 100) {
           top = screenHeight - pickerHeight - 100;
         }
 
         return Stack(
           children: [
-            // Full screen tap to dismiss
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -129,7 +197,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 child: Container(color: Colors.transparent),
               ),
             ),
-            // Emoji picker
             Positioned(
               left: left,
               top: top,
@@ -155,7 +222,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     try {
       Overlay.of(context).insert(_emojiOverlayEntry!);
     } catch (e) {
-      debugPrint('Failed to insert overlay: $e');
       _emojiOverlayEntry = null;
     }
   }
@@ -166,120 +232,53 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SELECTION LOGIC
+  // SELECTION LOGIC - No setState, uses ValueNotifier
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void _onMessageLongPress(String messageId, Map<String, dynamic> data, bool isMe) {
+  void _onMessageLongPress(
+      String messageId, Map<String, dynamic> data, bool isMe) {
     HapticFeedback.mediumImpact();
     _removeEmojiOverlay();
 
     final deletedForEveryone = data['deletedForEveryone'] == true;
     if (deletedForEveryone) return;
 
-    setState(() {
-      _selectedMessageIds.clear();
-      _selectedMessageIds.add(messageId);
-      _wasDirectSelection = true;
-      _directSelectedMessageId = messageId;
-    });
+    // Update selection without setState
+    _selectedMessageIds.value = {messageId};
+    _wasDirectSelection.value = true;
+    _directSelectedMessageId.value = messageId;
 
-    // Store data for showing overlay
     final reactions = Map<String, String>.from(data['reactions'] ?? {});
-
-    // Try showing overlay with retries
     _tryShowEmojiOverlay(messageId, reactions, isMe, retries: 5);
   }
 
-  void _tryShowEmojiOverlay(
-      String messageId,
-      Map<String, String> reactions,
-      bool isMe, {
-        int retries = 5,
-      }) {
-    if (retries <= 0) {
-      debugPrint('Failed to show emoji overlay after all retries');
-      return;
-    }
-
-    if (!mounted) return;
-    if (!_wasDirectSelection || _directSelectedMessageId != messageId) return;
-
-    final key = _messageKeys[messageId];
-
-    // Check if key and context are ready
-    if (key == null || key.currentContext == null) {
-      // Retry after a frame
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
-      });
-      return;
-    }
-
-    // Check if render object is available
-    final renderObject = key.currentContext!.findRenderObject();
-    if (renderObject == null || !renderObject.attached) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _tryShowEmojiOverlay(messageId, reactions, isMe, retries: retries - 1);
-      });
-      return;
-    }
-
-    // All good, show the overlay
-    _showEmojiOverlay(messageId, reactions, isMe);
-  }
-
   void _onMessageTap(String messageId) {
-    if (_selectedMessageIds.isEmpty) return;
+    if (_selectedMessageIds.value.isEmpty) return;
 
     _removeEmojiOverlay();
 
-    setState(() {
-      if (_selectedMessageIds.contains(messageId)) {
-        _selectedMessageIds.remove(messageId);
-        _wasDirectSelection = false;
-        _directSelectedMessageId = null;
-      } else {
-        _selectedMessageIds.add(messageId);
-        _wasDirectSelection = false;
-        _directSelectedMessageId = null;
-      }
-    });
+    final newSet = Set<String>.from(_selectedMessageIds.value);
+    if (newSet.contains(messageId)) {
+      newSet.remove(messageId);
+    } else {
+      newSet.add(messageId);
+    }
+
+    _selectedMessageIds.value = newSet;
+    _wasDirectSelection.value = false;
+    _directSelectedMessageId.value = null;
   }
 
   void _clearSelection() {
     _removeEmojiOverlay();
-    setState(() {
-      _selectedMessageIds.clear();
-      _wasDirectSelection = false;
-      _directSelectedMessageId = null;
-    });
+    _selectedMessageIds.value = {};
+    _wasDirectSelection.value = false;
+    _directSelectedMessageId.value = null;
   }
-
-  bool get _showEmojiPicker =>
-      _selectedMessageIds.length == 1 &&
-          _wasDirectSelection &&
-          _directSelectedMessageId != null;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FRIENDSHIP CHECK
   // ═══════════════════════════════════════════════════════════════════════════
-
-  Stream<DocumentSnapshot?> _friendshipStream() {
-    return FirebaseFirestore.instance
-        .collection('relationships')
-        .where('users', arrayContains: _currentUser!.uid)
-        .snapshots()
-        .map((snapshot) {
-      try {
-        return snapshot.docs.firstWhere((doc) {
-          final users = List<String>.from(doc['users']);
-          return users.contains(widget.friendUid);
-        });
-      } catch (e) {
-        return null;
-      }
-    });
-  }
 
   Future<bool> _checkFriendship() async {
     final relationshipQuery = await FirebaseFirestore.instance
@@ -313,10 +312,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     setState(() => _isSending = true);
 
     final messageText = text;
-    final replyData = _replyingTo;
+    final replyData = _replyingTo.value;
 
     _messageController.clear();
-    setState(() => _replyingTo = null);
+    _replyingTo.value = null;
 
     try {
       final now = FieldValue.serverTimestamp();
@@ -379,7 +378,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _editMessage() async {
-    if (_editingMessageId == null) return;
+    final editingId = _editingMessageId.value;
+    if (editingId == null) return;
 
     final text = _messageController.text.trim();
     if (text.isEmpty || text == _originalEditText) {
@@ -392,7 +392,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           .collection('chats')
           .doc(widget.chatId)
           .collection('messages')
-          .doc(_editingMessageId);
+          .doc(editingId);
 
       final doc = await messageRef.get();
       if (doc.exists) {
@@ -400,7 +400,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         await messageRef.update({
           'text': text,
           'editedAt': FieldValue.serverTimestamp(),
-          'senderId': data['senderId'], // Preserve senderId for rules
+          'senderId': data['senderId'],
         });
       }
 
@@ -412,51 +412,41 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _cancelEdit() {
-    setState(() {
-      _editingMessageId = null;
-      _originalEditText = null;
-      _messageController.clear();
-    });
+    _editingMessageId.value = null;
+    _originalEditText = null;
+    _messageController.clear();
   }
 
   void _startEdit(String messageId, String text) {
     _removeEmojiOverlay();
-    setState(() {
-      _editingMessageId = messageId;
-      _originalEditText = text;
-      _messageController.text = text;
-      _replyingTo = null;
-      _selectedMessageIds.clear();
-      _wasDirectSelection = false;
-      _directSelectedMessageId = null;
-    });
+    _editingMessageId.value = messageId;
+    _originalEditText = text;
+    _messageController.text = text;
+    _replyingTo.value = null;
+    _clearSelection();
     _inputFocusNode.requestFocus();
   }
 
   void _startReply(String messageId, String text, String senderId) {
     _removeEmojiOverlay();
-    setState(() {
-      _replyingTo = {
-        'messageId': messageId,
-        'text': text,
-        'senderId': senderId,
-      };
-      _editingMessageId = null;
-      _selectedMessageIds.clear();
-      _wasDirectSelection = false;
-      _directSelectedMessageId = null;
-    });
+    _replyingTo.value = {
+      'messageId': messageId,
+      'text': text,
+      'senderId': senderId,
+    };
+    _editingMessageId.value = null;
+    _clearSelection();
     _inputFocusNode.requestFocus();
   }
 
   void _cancelReply() {
-    setState(() => _replyingTo = null);
+    _replyingTo.value = null;
   }
 
   Future<void> _copyMessages(List<DocumentSnapshot> allMessages) async {
-    final selectedDocs = allMessages
-        .where((doc) => _selectedMessageIds.contains(doc.id))
-        .toList();
+    final selectedIds = _selectedMessageIds.value;
+    final selectedDocs =
+    allMessages.where((doc) => selectedIds.contains(doc.id)).toList();
 
     selectedDocs.sort((a, b) {
       final aTime = a['timestamp'] as Timestamp?;
@@ -484,7 +474,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           .collection('messages')
           .doc(messageId);
 
-      // Use transaction for atomic read-modify-write
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final doc = await transaction.get(messageRef);
 
@@ -494,33 +483,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
         final data = doc.data() as Map<String, dynamic>;
         final reactions = Map<String, String>.from(data['reactions'] ?? {});
-        final senderId = data['senderId'] as String; // Preserve senderId
+        final senderId = data['senderId'] as String;
 
         if (reactions[_currentUser!.uid] == emoji) {
-          // Remove reaction if same emoji tapped
           reactions.remove(_currentUser!.uid);
         } else {
-          // Add or change reaction
           reactions[_currentUser!.uid] = emoji;
         }
 
-        // Update with senderId preserved (required by rules)
         transaction.update(messageRef, {
           'reactions': reactions,
-          'senderId': senderId, // Must include to satisfy rules
+          'senderId': senderId,
         });
       });
 
-      // Clear selection after successful reaction
-      if (mounted) {
-        setState(() {
-          _wasDirectSelection = false;
-          _directSelectedMessageId = null;
-          _selectedMessageIds.clear();
-        });
-      }
+      _clearSelection();
     } catch (e) {
-      debugPrint('Reaction error: $e');
       if (mounted) {
         _showSnackBar('Failed to add reaction');
       }
@@ -532,7 +510,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       context: context,
       builder: (ctx) => _DeleteDialog(
         chatId: widget.chatId,
-        selectedIds: _selectedMessageIds.toList(),
+        selectedIds: _selectedMessageIds.value.toList(),
         currentUserId: _currentUser!.uid,
         onComplete: () {
           _clearSelection();
@@ -566,7 +544,90 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD
+  // MENU ACTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _handleMenuAction(String action) {
+    _removeEmojiOverlay();
+    switch (action) {
+      case 'reply':
+        _handleReplyFromMenu();
+        break;
+      case 'copy':
+        _handleCopyFromMenu();
+        break;
+      case 'edit':
+        _handleEditFromMenu();
+        break;
+      case 'delete':
+        _showDeleteDialog();
+        break;
+    }
+  }
+
+  void _handleReplyFromMenu() async {
+    final selectedIds = _selectedMessageIds.value;
+    if (selectedIds.length != 1) return;
+    final messageId = selectedIds.first;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .doc(messageId)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      if (data['deletedForEveryone'] == true) {
+        _showSnackBar('Cannot reply to deleted message');
+        _clearSelection();
+        return;
+      }
+      _startReply(messageId, data['text'] ?? '', data['senderId'] ?? '');
+    }
+  }
+
+  void _handleCopyFromMenu() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .get();
+
+    _copyMessages(snapshot.docs);
+  }
+
+  void _handleEditFromMenu() async {
+    final selectedIds = _selectedMessageIds.value;
+    if (selectedIds.length != 1) return;
+    final messageId = selectedIds.first;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .doc(messageId)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      if (data['senderId'] != _currentUser!.uid) {
+        _showSnackBar('You can only edit your own messages');
+        _clearSelection();
+        return;
+      }
+      if (data['deletedForEveryone'] == true) {
+        _showSnackBar('Cannot edit deleted message');
+        _clearSelection();
+        return;
+      }
+      _startEdit(messageId, data['text'] ?? '');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUILD - Optimized with ValueListenableBuilders
   // ═══════════════════════════════════════════════════════════════════════════
 
   @override
@@ -575,9 +636,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: _buildAppBar(cs),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ValueListenableBuilder<Set<String>>(
+          valueListenable: _selectedMessageIds,
+          builder: (context, selectedIds, _) {
+            return _buildAppBar(cs, selectedIds);
+          },
+        ),
+      ),
       body: StreamBuilder<DocumentSnapshot?>(
-        stream: _friendshipStream(),
+        stream: _friendshipStream, // Uses cached stream
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -593,8 +662,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           return Column(
             children: [
               Expanded(child: _buildMessagesList(cs)),
-              if (_replyingTo != null) _buildReplyPreview(cs),
-              if (_editingMessageId != null) _buildEditPreview(cs),
+              _buildReplyPreviewListenable(cs),
+              _buildEditPreviewListenable(cs),
               _buildInputBar(cs, areFriends),
             ],
           );
@@ -603,8 +672,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(ColorScheme cs) {
-    final isSelecting = _selectedMessageIds.isNotEmpty;
+  AppBar _buildAppBar(ColorScheme cs, Set<String> selectedIds) {
+    final isSelecting = selectedIds.isNotEmpty;
 
     return AppBar(
       leading: isSelecting
@@ -613,10 +682,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         onPressed: _clearSelection,
       )
           : null,
-      titleSpacing: isSelecting ? 0 : 0,
+      titleSpacing: 0,
       title: isSelecting
           ? Text(
-        '${_selectedMessageIds.length} selected',
+        '${selectedIds.length} selected',
         style: const TextStyle(fontWeight: FontWeight.w600),
       )
           : Row(
@@ -649,23 +718,22 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       actions: isSelecting
           ? [
         PopupMenuButton<String>(
-          key: _menuButtonKey,
           icon: const Icon(Icons.more_vert),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           position: PopupMenuPosition.under,
-          onSelected: (value) => _handleMenuAction(value),
-          itemBuilder: (context) => _buildMenuItems(),
+          onSelected: _handleMenuAction,
+          itemBuilder: (context) => _buildMenuItems(selectedIds.length),
         ),
       ]
           : null,
     );
   }
 
-  List<PopupMenuEntry<String>> _buildMenuItems() {
+  List<PopupMenuEntry<String>> _buildMenuItems(int selectedCount) {
     final items = <PopupMenuEntry<String>>[];
-    final singleSelected = _selectedMessageIds.length == 1;
+    final singleSelected = selectedCount == 1;
 
     if (singleSelected) {
       items.add(const PopupMenuItem(
@@ -720,95 +788,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return items;
   }
 
-  void _handleMenuAction(String action) {
-    _removeEmojiOverlay();
-    switch (action) {
-      case 'reply':
-        _handleReplyFromMenu();
-        break;
-      case 'copy':
-        _handleCopyFromMenu();
-        break;
-      case 'edit':
-        _handleEditFromMenu();
-        break;
-      case 'delete':
-        _showDeleteDialog();
-        break;
-    }
-  }
-
-  void _handleReplyFromMenu() async {
-    if (_selectedMessageIds.length != 1) return;
-    final messageId = _selectedMessageIds.first;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .doc(messageId)
-        .get();
-
-    if (doc.exists) {
-      final data = doc.data()!;
-      if (data['deletedForEveryone'] == true) {
-        _showSnackBar('Cannot reply to deleted message');
-        _clearSelection();
-        return;
-      }
-      _startReply(messageId, data['text'] ?? '', data['senderId'] ?? '');
-    }
-  }
-
-  void _handleCopyFromMenu() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .get();
-
-    _copyMessages(snapshot.docs);
-  }
-
-  void _handleEditFromMenu() async {
-    if (_selectedMessageIds.length != 1) return;
-    final messageId = _selectedMessageIds.first;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .doc(messageId)
-        .get();
-
-    if (doc.exists) {
-      final data = doc.data()!;
-      if (data['senderId'] != _currentUser!.uid) {
-        _showSnackBar('You can only edit your own messages');
-        _clearSelection();
-        return;
-      }
-      if (data['deletedForEveryone'] == true) {
-        _showSnackBar('Cannot edit deleted message');
-        _clearSelection();
-        return;
-      }
-      _startEdit(messageId, data['text'] ?? '');
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
-  // MESSAGES LIST
+  // MESSAGES LIST - Optimized
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildMessagesList(ColorScheme cs) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
+      stream: _messagesStream, // Uses cached stream - no re-subscription!
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -816,7 +802,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
         final allDocs = snapshot.data?.docs ?? [];
 
-        // Filter out messages deleted for current user
         final messages = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final deletedFor = List<String>.from(data['deletedFor'] ?? []);
@@ -827,64 +812,88 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           return _buildEmptyState(cs);
         }
 
-        return GestureDetector(
-          onTap: () {
-            // Tap on empty area clears selection
-            if (_selectedMessageIds.isNotEmpty) {
-              _clearSelection();
-            }
-          },
-          child: ListView.builder(
-            controller: _scrollController,
-            reverse: true,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            physics: const BouncingScrollPhysics(),
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              final doc = messages[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final messageId = doc.id;
-              final isMe = data['senderId'] == _currentUser?.uid;
-              final timestamp = data['timestamp'] as Timestamp?;
+        return ListView.builder(
+          controller: _scrollController,
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          physics: const BouncingScrollPhysics(),
+          // Preserve item state
+          addAutomaticKeepAlives: true,
+          // Use unique keys for stable items
+          key: const PageStorageKey('messages_list'),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final doc = messages[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final messageId = doc.id;
+            final isMe = data['senderId'] == _currentUser?.uid;
+            final timestamp = data['timestamp'] as Timestamp?;
 
-              // Date separator logic
-              bool showDate = false;
-              if (index == messages.length - 1) {
-                showDate = true;
-              } else {
-                final nextData =
-                messages[index + 1].data() as Map<String, dynamic>;
-                final nextTimestamp = nextData['timestamp'] as Timestamp?;
-                if (timestamp != null && nextTimestamp != null) {
-                  final current = timestamp.toDate();
-                  final next = nextTimestamp.toDate();
-                  if (current.day != next.day ||
-                      current.month != next.month ||
-                      current.year != next.year) {
-                    showDate = true;
-                  }
+            bool showDate = false;
+            if (index == messages.length - 1) {
+              showDate = true;
+            } else {
+              final nextData =
+              messages[index + 1].data() as Map<String, dynamic>;
+              final nextTimestamp = nextData['timestamp'] as Timestamp?;
+              if (timestamp != null && nextTimestamp != null) {
+                final current = timestamp.toDate();
+                final next = nextTimestamp.toDate();
+                if (current.day != next.day ||
+                    current.month != next.month ||
+                    current.year != next.year) {
+                  showDate = true;
                 }
               }
+            }
 
-              return Column(
-                children: [
-                  if (showDate && timestamp != null)
-                    _buildDateSeparator(timestamp, cs),
-                  _buildMessageItem(
-                    messageId: messageId,
-                    data: data,
-                    isMe: isMe,
-                    timestamp: timestamp,
-                    cs: cs,
-                    allMessages: allDocs,
-                  ),
-                ],
-              );
-            },
-          ),
+            return Column(
+              key: ValueKey(messageId), // Stable key
+              children: [
+                if (showDate && timestamp != null)
+                  _buildDateSeparator(timestamp, cs),
+                _MessageItemWidget(
+                  messageId: messageId,
+                  data: data,
+                  isMe: isMe,
+                  timestamp: timestamp,
+                  currentUserId: _currentUser!.uid,
+                  friendUsername: widget.friendUsername,
+                  selectedMessageIds: _selectedMessageIds,
+                  messageKeys: _messageKeys,
+                  onLongPress: () => _onMessageLongPress(messageId, data, isMe),
+                  onTap: () => _onMessageTap(messageId),
+                  onSwipeReply: () {
+                    final text = data['text'] ?? '';
+                    final senderId = data['senderId'] ?? '';
+                    _startReply(messageId, text, senderId);
+                  },
+                  onReplyTap: data['replyTo'] != null
+                      ? () {
+                    final replyTo =
+                    data['replyTo'] as Map<String, dynamic>;
+                    _scrollToMessage(replyTo['messageId'], allDocs);
+                  }
+                      : null,
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  void _scrollToMessage(
+      String messageId, List<QueryDocumentSnapshot> allMessages) {
+    final index = allMessages.indexWhere((doc) => doc.id == messageId);
+    if (index != -1 && _scrollController.hasClients) {
+      _scrollController.animateTo(
+        index * 80.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Widget _buildEmptyState(ColorScheme cs) {
@@ -955,207 +964,136 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMessageItem({
-    required String messageId,
-    required Map<String, dynamic> data,
-    required bool isMe,
-    required Timestamp? timestamp,
-    required ColorScheme cs,
-    required List<QueryDocumentSnapshot> allMessages,
-  }) {
-    // Create key FIRST - before any returns or conditionals
-    if (!_messageKeys.containsKey(messageId)) {
-      _messageKeys[messageId] = GlobalKey();
-    }
-    final messageKey = _messageKeys[messageId]!;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPLY & EDIT PREVIEW - Using ValueListenableBuilder
+  // ═══════════════════════════════════════════════════════════════════════════
 
-    final isSelected = _selectedMessageIds.contains(messageId);
-    final text = data['text'] ?? '';
-    final deletedForEveryone = data['deletedForEveryone'] == true;
-    final deletedBy = data['deletedBy'] as String?;
-    final reactions = Map<String, String>.from(data['reactions'] ?? {});
-    final replyTo = data['replyTo'] as Map<String, dynamic>?;
-    final editedAt = data['editedAt'] as Timestamp?;
-    final senderId = data['senderId'] as String? ?? '';
+  Widget _buildReplyPreviewListenable(ColorScheme cs) {
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: _replyingTo,
+      builder: (context, replyData, _) {
+        if (replyData == null) return const SizedBox.shrink();
 
-    return GestureDetector(
-      key: messageKey,  // Use the variable, not the map lookup
-      onLongPress: () => _onMessageLongPress(messageId, data, isMe),
-      onTap: () {
-        if (_selectedMessageIds.isNotEmpty) {
-          _onMessageTap(messageId);
-        }
+        final isOwnMessage = replyData['senderId'] == _currentUser!.uid;
+        final senderName = isOwnMessage ? 'You' : widget.friendUsername;
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            border: Border(
+              top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Replying to $senderName',
+                      style: TextStyle(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      replyData['text'],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
+                onPressed: _cancelReply,
+                iconSize: 20,
+              ),
+            ],
+          ),
+        );
       },
-      child: Dismissible(
-        key: Key('dismiss_$messageId'),
-        direction: deletedForEveryone
-            ? DismissDirection.none
-            : DismissDirection.startToEnd,
-        confirmDismiss: (_) async {
-          if (!deletedForEveryone) {
-            _startReply(messageId, text, senderId);
-          }
-          return false;
-        },
-        background: Container(
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 20),
-          child: Icon(
-            Icons.reply,
-            color: cs.primary,
-            size: 24,
-          ),
-        ),
-        child: _MessageBubble(
-          messageId: messageId,
-          text: text,
-          isMe: isMe,
-          timestamp: timestamp,
-          isSelected: isSelected,
-          deletedForEveryone: deletedForEveryone,
-          deletedBy: deletedBy,
-          currentUserId: _currentUser!.uid,
-          reactions: reactions,
-          replyTo: replyTo,
-          editedAt: editedAt,
-          friendUsername: widget.friendUsername,
-          onReplyTap: replyTo != null
-              ? () => _scrollToMessage(replyTo['messageId'], allMessages)
-              : null,
-        ),
-      ),
     );
   }
 
-  void _scrollToMessage(
-      String messageId, List<QueryDocumentSnapshot> allMessages) {
-    final index = allMessages.indexWhere((doc) => doc.id == messageId);
-    if (index != -1 && _scrollController.hasClients) {
-      // Approximate scroll position
-      _scrollController.animateTo(
-        index * 80.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
+  Widget _buildEditPreviewListenable(ColorScheme cs) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: _editingMessageId,
+      builder: (context, editingId, _) {
+        if (editingId == null) return const SizedBox.shrink();
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // REPLY & EDIT PREVIEW
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildReplyPreview(ColorScheme cs) {
-    final isOwnMessage = _replyingTo!['senderId'] == _currentUser!.uid;
-    final senderName = isOwnMessage ? 'You' : widget.friendUsername;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(
-          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 40,
-            decoration: BoxDecoration(
-              color: cs.primary,
-              borderRadius: BorderRadius.circular(2),
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            border: Border(
+              top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Replying to $senderName',
-                  style: TextStyle(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cs.tertiary,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _replyingTo!['text'],
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withOpacity(0.6),
-                    fontSize: 13,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Editing message',
+                      style: TextStyle(
+                        color: cs.tertiary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _originalEditText ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
+                onPressed: _cancelEdit,
+                iconSize: 20,
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
-            onPressed: _cancelReply,
-            iconSize: 20,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditPreview(ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(
-          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 40,
-            decoration: BoxDecoration(
-              color: cs.tertiary,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Editing message',
-                  style: TextStyle(
-                    color: cs.tertiary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _originalEditText ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withOpacity(0.6),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
-            onPressed: _cancelEdit,
-            iconSize: 20,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1187,75 +1125,176 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       );
     }
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        10,
-        16,
-        MediaQuery.of(context).padding.bottom + 10,
-      ),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(
-          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: cs.onSurface.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: TextField(
-                controller: _messageController,
-                focusNode: _inputFocusNode,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: _editingMessageId != null
-                      ? 'Edit message...'
-                      : 'Type a message...',
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+    return ValueListenableBuilder<String?>(
+      valueListenable: _editingMessageId,
+      builder: (context, editingId, _) {
+        final isEditing = editingId != null;
+
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            10,
+            16,
+            MediaQuery.of(context).padding.bottom + 10,
+          ),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            border: Border(
+              top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: TextField(
+                    controller: _messageController,
+                    focusNode: _inputFocusNode,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText:
+                      isEditing ? 'Edit message...' : 'Type a message...',
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                    ),
+                    onSubmitted: (_) =>
+                    isEditing ? _editMessage() : _sendMessage(),
                   ),
                 ),
-                onSubmitted: (_) =>
-                _editingMessageId != null ? _editMessage() : _sendMessage(),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _editingMessageId != null ? _editMessage : _sendMessage,
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: _editingMessageId != null ? cs.tertiary : cs.primary,
-                shape: BoxShape.circle,
-              ),
-              child: _isSending
-                  ? Padding(
-                padding: const EdgeInsets.all(13),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: cs.onPrimary,
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: isEditing ? _editMessage : _sendMessage,
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: isEditing ? cs.tertiary : cs.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: _isSending
+                      ? Padding(
+                    padding: const EdgeInsets.all(13),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: cs.onPrimary,
+                    ),
+                  )
+                      : Icon(
+                    isEditing ? Icons.check : Icons.send_rounded,
+                    color: cs.onPrimary,
+                    size: 20,
+                  ),
                 ),
-              )
-                  : Icon(
-                _editingMessageId != null
-                    ? Icons.check
-                    : Icons.send_rounded,
-                color: cs.onPrimary,
-                size: 20,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MESSAGE ITEM WIDGET - Separate StatelessWidget for performance
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _MessageItemWidget extends StatelessWidget {
+  final String messageId;
+  final Map<String, dynamic> data;
+  final bool isMe;
+  final Timestamp? timestamp;
+  final String currentUserId;
+  final String friendUsername;
+  final ValueNotifier<Set<String>> selectedMessageIds;
+  final Map<String, GlobalKey> messageKeys;
+  final VoidCallback onLongPress;
+  final VoidCallback onTap;
+  final VoidCallback onSwipeReply;
+  final VoidCallback? onReplyTap;
+
+  const _MessageItemWidget({
+    required this.messageId,
+    required this.data,
+    required this.isMe,
+    required this.timestamp,
+    required this.currentUserId,
+    required this.friendUsername,
+    required this.selectedMessageIds,
+    required this.messageKeys,
+    required this.onLongPress,
+    required this.onTap,
+    required this.onSwipeReply,
+    this.onReplyTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Ensure key exists
+    messageKeys[messageId] ??= GlobalKey();
+    final messageKey = messageKeys[messageId]!;
+
+    final text = data['text'] ?? '';
+    final deletedForEveryone = data['deletedForEveryone'] == true;
+    final deletedBy = data['deletedBy'] as String?;
+    final reactions = Map<String, String>.from(data['reactions'] ?? {});
+    final replyTo = data['replyTo'] as Map<String, dynamic>?;
+    final editedAt = data['editedAt'] as Timestamp?;
+
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: selectedMessageIds,
+      builder: (context, selectedIds, child) {
+        final isSelected = selectedIds.contains(messageId);
+
+        return GestureDetector(
+          key: messageKey,
+          onLongPress: deletedForEveryone ? null : onLongPress,
+          onTap: selectedIds.isNotEmpty ? onTap : null,
+          child: Dismissible(
+            key: Key('dismiss_$messageId'),
+            direction: deletedForEveryone
+                ? DismissDirection.none
+                : DismissDirection.startToEnd,
+            confirmDismiss: (_) async {
+              if (!deletedForEveryone) {
+                onSwipeReply();
+              }
+              return false;
+            },
+            background: Container(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 20),
+              child: Icon(
+                Icons.reply,
+                color: Theme.of(context).colorScheme.primary,
+                size: 24,
               ),
             ),
+            child: _MessageBubble(
+              messageId: messageId,
+              text: text,
+              isMe: isMe,
+              timestamp: timestamp,
+              isSelected: isSelected,
+              deletedForEveryone: deletedForEveryone,
+              deletedBy: deletedBy,
+              currentUserId: currentUserId,
+              reactions: reactions,
+              replyTo: replyTo,
+              editedAt: editedAt,
+              friendUsername: friendUsername,
+              onReplyTap: onReplyTap,
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1299,7 +1338,6 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Determine display text
     String displayText;
     bool isDeleted = false;
 
@@ -1645,7 +1683,7 @@ class _DeleteDialogState extends State<_DeleteDialog> {
           final data = doc.data()!;
           batch.update(ref, {
             'deletedFor': FieldValue.arrayUnion([widget.currentUserId]),
-            'senderId': data['senderId'], // Preserve for rules
+            'senderId': data['senderId'],
           });
         }
       }
@@ -1677,10 +1715,10 @@ class _DeleteDialogState extends State<_DeleteDialog> {
           batch.update(ref, {
             'deletedForEveryone': true,
             'deletedBy': widget.currentUserId,
-            'text': '', // Clear text for security
-            'reactions': {}, // Clear reactions
-            'replyTo': null, // Clear reply reference
-            'senderId': doc.data()!['senderId'], // Preserve for rules
+            'text': '',
+            'reactions': {},
+            'replyTo': null,
+            'senderId': doc.data()!['senderId'],
           });
         }
       }
