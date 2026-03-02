@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math' as math;
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -18,18 +20,85 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _inputFocusNode = FocusNode();
   final _currentUser = FirebaseAuth.instance.currentUser;
+
+  // Selection state
+  final Set<String> _selectedMessageIds = {};
+  bool _wasDirectSelection = false;
+  String? _directSelectedMessageId;
+
+  // Reply state
+  Map<String, dynamic>? _replyingTo;
+
+  // Edit state
+  String? _editingMessageId;
+  String? _originalEditText;
+
+  // UI state
   bool _isSending = false;
+  final GlobalKey _menuButtonKey = GlobalKey();
+
+  // Reaction emojis
+  final List<String> _reactionEmojis = ['❤️', '😂', '😮', '😢', '👍'];
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SELECTION LOGIC
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _onMessageLongPress(String messageId) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selectedMessageIds.clear();
+      _selectedMessageIds.add(messageId);
+      _wasDirectSelection = true;
+      _directSelectedMessageId = messageId;
+    });
+  }
+
+  void _onMessageTap(String messageId) {
+    if (_selectedMessageIds.isEmpty) return;
+
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        _wasDirectSelection = false;
+        _directSelectedMessageId = null;
+      } else {
+        _selectedMessageIds.add(messageId);
+        _wasDirectSelection = false;
+        _directSelectedMessageId = null;
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedMessageIds.clear();
+      _wasDirectSelection = false;
+      _directSelectedMessageId = null;
+    });
+  }
+
+  bool get _showEmojiPicker =>
+      _selectedMessageIds.length == 1 &&
+          _wasDirectSelection &&
+          _directSelectedMessageId != null;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FRIENDSHIP CHECK
+  // ═══════════════════════════════════════════════════════════════════════════
 
   Stream<DocumentSnapshot?> _friendshipStream() {
     return FirebaseFirestore.instance
@@ -37,64 +106,68 @@ class _ChatScreenState extends State<ChatScreen> {
         .where('users', arrayContains: _currentUser!.uid)
         .snapshots()
         .map((snapshot) {
-          try {
-            return snapshot.docs.firstWhere((doc) {
-              final users = List<String>.from(doc['users']);
-              return users.contains(widget.friendUid);
-            });
-          } catch (e) {
-            return null;
-          }
+      try {
+        return snapshot.docs.firstWhere((doc) {
+          final users = List<String>.from(doc['users']);
+          return users.contains(widget.friendUid);
         });
+      } catch (e) {
+        return null;
+      }
+    });
   }
 
-  // ─── SEND MESSAGE ─────────────────────────────────────────────────────
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending || _currentUser == null) return;
-
-    // ✅ Double-check friendship BEFORE modifying UI
+  Future<bool> _checkFriendship() async {
     final relationshipQuery = await FirebaseFirestore.instance
         .collection('relationships')
         .where('users', arrayContains: _currentUser!.uid)
         .get();
 
-    bool areFriends = false;
-
     for (var doc in relationshipQuery.docs) {
       final users = List<String>.from(doc['users']);
       if (users.contains(widget.friendUid) && doc['type'] == 'friends') {
-        areFriends = true;
-        break;
+        return true;
       }
     }
+    return false;
+  }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MESSAGE ACTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _isSending || _currentUser == null) return;
+
+    final areFriends = await _checkFriendship();
     if (!areFriends) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You are no longer friends")),
-      );
+      _showSnackBar("You are no longer friends");
       return;
     }
 
-    // ✅ NOW start sending state
     setState(() => _isSending = true);
+
+    final messageText = text;
+    final replyData = _replyingTo;
+
     _messageController.clear();
+    setState(() => _replyingTo = null);
 
     try {
       final now = FieldValue.serverTimestamp();
-      final chatRef = FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId);
+      final chatRef =
+      FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
 
       final chatDoc = await chatRef.get();
       if (!chatDoc.exists) {
-        // Fetch both users' usernames to store in chat metadata for search
         final usersRef = FirebaseFirestore.instance.collection('users');
         final currentUserDoc = await usersRef.doc(_currentUser!.uid).get();
         final friendDoc = await usersRef.doc(widget.friendUid).get();
-
-        final currentUsername = currentUserDoc['username'] as String? ?? 'Unknown';
-        final friendUsername = friendDoc['username'] as String? ?? widget.friendUsername;
+        final currentUsername =
+            currentUserDoc['username'] as String? ?? 'Unknown';
+        final friendUsername =
+            friendDoc['username'] as String? ?? widget.friendUsername;
 
         await chatRef.set({
           'participants': [_currentUser!.uid, widget.friendUid],
@@ -102,35 +175,180 @@ class _ChatScreenState extends State<ChatScreen> {
             currentUsername.toLowerCase(),
             friendUsername.toLowerCase(),
           ],
-          'lastMessage': text,
+          'lastMessage': messageText,
           'lastMessageTime': now,
           'lastMessageSender': _currentUser!.uid,
           'createdAt': now,
         });
       } else {
         await chatRef.update({
-          'lastMessage': text,
+          'lastMessage': messageText,
           'lastMessageTime': now,
           'lastMessageSender': _currentUser!.uid,
         });
       }
 
-      await chatRef.collection('messages').add({
-        'text': text,
+      final messageData = <String, dynamic>{
+        'text': messageText,
         'senderId': _currentUser!.uid,
         'timestamp': now,
-      });
+        'deletedFor': [],
+        'deletedForEveryone': false,
+        'reactions': {},
+      };
 
+      if (replyData != null) {
+        messageData['replyTo'] = {
+          'messageId': replyData['messageId'],
+          'text': replyData['text'],
+          'senderId': replyData['senderId'],
+        };
+      }
+
+      await chatRef.collection('messages').add(messageData);
       _scrollToBottom();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to send message.')),
-        );
-      }
+      if (mounted) _showSnackBar('Failed to send message.');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  Future<void> _editMessage() async {
+    if (_editingMessageId == null) return;
+
+    final text = _messageController.text.trim();
+    if (text.isEmpty || text == _originalEditText) {
+      _cancelEdit();
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(_editingMessageId)
+          .update({
+        'text': text,
+        'editedAt': FieldValue.serverTimestamp(),
+      });
+
+      _cancelEdit();
+      _showSnackBar('Message edited');
+    } catch (e) {
+      _showSnackBar('Failed to edit message');
+    }
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingMessageId = null;
+      _originalEditText = null;
+      _messageController.clear();
+    });
+  }
+
+  void _startEdit(String messageId, String text) {
+    setState(() {
+      _editingMessageId = messageId;
+      _originalEditText = text;
+      _messageController.text = text;
+      _replyingTo = null;
+      _clearSelection();
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _startReply(String messageId, String text, String senderId) {
+    setState(() {
+      _replyingTo = {
+        'messageId': messageId,
+        'text': text,
+        'senderId': senderId,
+      };
+      _editingMessageId = null;
+      _clearSelection();
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() => _replyingTo = null);
+  }
+
+  Future<void> _copyMessages(List<DocumentSnapshot> allMessages) async {
+    final selectedDocs = allMessages
+        .where((doc) => _selectedMessageIds.contains(doc.id))
+        .toList();
+
+    selectedDocs.sort((a, b) {
+      final aTime = a['timestamp'] as Timestamp?;
+      final bTime = b['timestamp'] as Timestamp?;
+      if (aTime == null || bTime == null) return 0;
+      return aTime.compareTo(bTime);
+    });
+
+    final texts = selectedDocs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['deletedForEveryone'] == true) return '[Deleted message]';
+      return data['text'] as String? ?? '';
+    }).join('\n');
+
+    await Clipboard.setData(ClipboardData(text: texts));
+    _clearSelection();
+    _showSnackBar('Copied to clipboard');
+  }
+
+  Future<void> _addReaction(String messageId, String emoji) async {
+    try {
+      final messageRef = FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(messageId);
+
+      final doc = await messageRef.get();
+      final reactions =
+      Map<String, dynamic>.from(doc.data()?['reactions'] ?? {});
+
+      if (reactions[_currentUser!.uid] == emoji) {
+        // Remove reaction
+        reactions.remove(_currentUser!.uid);
+      } else {
+        // Add/change reaction
+        reactions[_currentUser!.uid] = emoji;
+      }
+
+      await messageRef.update({'reactions': reactions});
+
+      setState(() {
+        _wasDirectSelection = false;
+        _directSelectedMessageId = null;
+      });
+    } catch (e) {
+      _showSnackBar('Failed to add reaction');
+    }
+  }
+
+  void _showDeleteDialog() {
+    final hasOwnMessage = _selectedMessageIds.any((id) {
+      // We'll check ownership in the dialog
+      return true;
+    });
+
+    showDialog(
+      context: context,
+      builder: (ctx) => _DeleteDialog(
+        chatId: widget.chatId,
+        selectedIds: _selectedMessageIds.toList(),
+        currentUserId: _currentUser!.uid,
+        onComplete: () {
+          _clearSelection();
+          Navigator.pop(ctx);
+        },
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -145,46 +363,28 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // ─── BUILD ─────────────────────────────────────────────────────────────
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: cs.primary.withValues(alpha: 0.15),
-              child: Text(
-                widget.friendUsername.isNotEmpty
-                    ? widget.friendUsername[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.friendUsername,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
+      appBar: _buildAppBar(cs),
       body: StreamBuilder<DocumentSnapshot?>(
         stream: _friendshipStream(),
         builder: (context, snapshot) {
@@ -194,17 +394,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
           final relationshipDoc = snapshot.data;
           bool areFriends = false;
-
           if (relationshipDoc != null && relationshipDoc.exists) {
             final data = relationshipDoc.data() as Map<String, dynamic>?;
-            final type = data?['type'];
-            areFriends = type == 'friends';
+            areFriends = data?['type'] == 'friends';
           }
 
           return Column(
             children: [
               Expanded(child: _buildMessagesList(cs)),
-              _buildInputBar(theme, cs, areFriends),
+              if (_replyingTo != null) _buildReplyPreview(cs),
+              if (_editingMessageId != null) _buildEditPreview(cs),
+              _buildInputBar(cs, areFriends),
             ],
           );
         },
@@ -212,7 +412,192 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ─── MESSAGES LIST ────────────────────────────────────────────────────
+  PreferredSizeWidget _buildAppBar(ColorScheme cs) {
+    final isSelecting = _selectedMessageIds.isNotEmpty;
+
+    return AppBar(
+      leading: isSelecting
+          ? IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _clearSelection,
+      )
+          : null,
+      titleSpacing: isSelecting ? 0 : 0,
+      title: isSelecting
+          ? Text(
+        '${_selectedMessageIds.length} selected',
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      )
+          : Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: cs.primary.withOpacity(0.15),
+            child: Text(
+              widget.friendUsername.isNotEmpty
+                  ? widget.friendUsername[0].toUpperCase()
+                  : '?',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: cs.primary,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.friendUsername,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      actions: isSelecting
+          ? [
+        PopupMenuButton<String>(
+          key: _menuButtonKey,
+          icon: const Icon(Icons.more_vert),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          position: PopupMenuPosition.under,
+          onSelected: (value) => _handleMenuAction(value),
+          itemBuilder: (context) => _buildMenuItems(),
+        ),
+      ]
+          : null,
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildMenuItems() {
+    final items = <PopupMenuEntry<String>>[];
+    final singleSelected = _selectedMessageIds.length == 1;
+
+    if (singleSelected) {
+      items.add(const PopupMenuItem(
+        value: 'reply',
+        child: Row(
+          children: [
+            Icon(Icons.reply, size: 20),
+            SizedBox(width: 12),
+            Text('Reply'),
+          ],
+        ),
+      ));
+    }
+
+    items.add(const PopupMenuItem(
+      value: 'copy',
+      child: Row(
+        children: [
+          Icon(Icons.copy, size: 20),
+          SizedBox(width: 12),
+          Text('Copy'),
+        ],
+      ),
+    ));
+
+    if (singleSelected) {
+      items.add(const PopupMenuItem(
+        value: 'edit',
+        child: Row(
+          children: [
+            Icon(Icons.edit, size: 20),
+            SizedBox(width: 12),
+            Text('Edit'),
+          ],
+        ),
+      ));
+    }
+
+    items.add(PopupMenuItem(
+      value: 'delete',
+      child: Row(
+        children: [
+          Icon(Icons.delete, size: 20, color: Theme.of(context).colorScheme.error),
+          const SizedBox(width: 12),
+          Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        ],
+      ),
+    ));
+
+    return items;
+  }
+
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'reply':
+        _handleReplyFromMenu();
+        break;
+      case 'copy':
+        _handleCopyFromMenu();
+        break;
+      case 'edit':
+        _handleEditFromMenu();
+        break;
+      case 'delete':
+        _showDeleteDialog();
+        break;
+    }
+  }
+
+  void _handleReplyFromMenu() async {
+    if (_selectedMessageIds.length != 1) return;
+    final messageId = _selectedMessageIds.first;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .doc(messageId)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      _startReply(messageId, data['text'] ?? '', data['senderId'] ?? '');
+    }
+  }
+
+  void _handleCopyFromMenu() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .get();
+
+    _copyMessages(snapshot.docs);
+  }
+
+  void _handleEditFromMenu() async {
+    if (_selectedMessageIds.length != 1) return;
+    final messageId = _selectedMessageIds.first;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .doc(messageId)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      if (data['senderId'] == _currentUser!.uid &&
+          data['deletedForEveryone'] != true) {
+        _startEdit(messageId, data['text'] ?? '');
+      } else {
+        _showSnackBar('You can only edit your own messages');
+        _clearSelection();
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MESSAGES LIST
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _buildMessagesList(ColorScheme cs) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -226,37 +611,17 @@ class _ChatScreenState extends State<ChatScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final messages = snapshot.data?.docs ?? [];
+        final allDocs = snapshot.data?.docs ?? [];
+
+        // Filter out messages deleted for current user
+        final messages = allDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final deletedFor = List<String>.from(data['deletedFor'] ?? []);
+          return !deletedFor.contains(_currentUser!.uid);
+        }).toList();
 
         if (messages.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline_rounded,
-                  size: 64,
-                  color: cs.onSurface.withValues(alpha: 0.15),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No messages yet',
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.5),
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Say hello! 👋',
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.3),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildEmptyState(cs);
         }
 
         return ListView.builder(
@@ -266,18 +631,19 @@ class _ChatScreenState extends State<ChatScreen> {
           physics: const BouncingScrollPhysics(),
           itemCount: messages.length,
           itemBuilder: (context, index) {
-            final data = messages[index].data() as Map<String, dynamic>;
+            final doc = messages[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final messageId = doc.id;
             final isMe = data['senderId'] == _currentUser?.uid;
-            final text = data['text'] ?? '';
             final timestamp = data['timestamp'] as Timestamp?;
 
-            // Check if we should show date separator
+            // Date separator logic
             bool showDate = false;
             if (index == messages.length - 1) {
               showDate = true;
             } else {
               final nextData =
-                  messages[index + 1].data() as Map<String, dynamic>;
+              messages[index + 1].data() as Map<String, dynamic>;
               final nextTimestamp = nextData['timestamp'] as Timestamp?;
               if (timestamp != null && nextTimestamp != null) {
                 final current = timestamp.toDate();
@@ -293,13 +659,51 @@ class _ChatScreenState extends State<ChatScreen> {
             return Column(
               children: [
                 if (showDate && timestamp != null)
-                  _buildDateSeparator(timestamp, Theme.of(context).colorScheme),
-                _MessageBubble(text: text, isMe: isMe, timestamp: timestamp),
+                  _buildDateSeparator(timestamp, cs),
+                _buildMessageItem(
+                  messageId: messageId,
+                  data: data,
+                  isMe: isMe,
+                  timestamp: timestamp,
+                  cs: cs,
+                  allMessages: allDocs,
+                ),
               ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildEmptyState(ColorScheme cs) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 64,
+            color: cs.onSurface.withOpacity(0.15),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No messages yet',
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.5),
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Say hello! 👋',
+            style: TextStyle(
+              color: cs.onSurface.withOpacity(0.3),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -325,14 +729,14 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: cs.onSurface.withValues(alpha: 0.06),
+          color: cs.onSurface.withOpacity(0.06),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
-            color: cs.onSurface.withValues(alpha: 0.45),
+            color: cs.onSurface.withOpacity(0.45),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -340,8 +744,226 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ─── INPUT BAR ────────────────────────────────────────────────────────
-  Widget _buildInputBar(ThemeData theme, ColorScheme cs, bool areFriends) {
+  Widget _buildMessageItem({
+    required String messageId,
+    required Map<String, dynamic> data,
+    required bool isMe,
+    required Timestamp? timestamp,
+    required ColorScheme cs,
+    required List<QueryDocumentSnapshot> allMessages,
+  }) {
+    final isSelected = _selectedMessageIds.contains(messageId);
+    final showEmojiPickerForThis = _showEmojiPicker &&
+        _directSelectedMessageId == messageId;
+
+    final text = data['text'] ?? '';
+    final deletedForEveryone = data['deletedForEveryone'] == true;
+    final deletedBy = data['deletedBy'] as String?;
+    final reactions = Map<String, String>.from(data['reactions'] ?? {});
+    final replyTo = data['replyTo'] as Map<String, dynamic>?;
+    final editedAt = data['editedAt'] as Timestamp?;
+    final senderId = data['senderId'] as String? ?? '';
+
+    return GestureDetector(
+      onLongPress: () => _onMessageLongPress(messageId),
+      onTap: () {
+        if (_selectedMessageIds.isNotEmpty) {
+          _onMessageTap(messageId);
+        }
+      },
+      child: Dismissible(
+        key: Key(messageId),
+        direction: DismissDirection.startToEnd,
+        confirmDismiss: (_) async {
+          if (!deletedForEveryone) {
+            _startReply(messageId, text, senderId);
+          }
+          return false;
+        },
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 20),
+          child: Icon(
+            Icons.reply,
+            color: cs.primary,
+            size: 24,
+          ),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _MessageBubble(
+              messageId: messageId,
+              text: text,
+              isMe: isMe,
+              timestamp: timestamp,
+              isSelected: isSelected,
+              deletedForEveryone: deletedForEveryone,
+              deletedBy: deletedBy,
+              currentUserId: _currentUser!.uid,
+              reactions: reactions,
+              replyTo: replyTo,
+              editedAt: editedAt,
+              friendUsername: widget.friendUsername,
+              onReplyTap: replyTo != null
+                  ? () => _scrollToMessage(replyTo['messageId'], allMessages)
+                  : null,
+            ),
+            if (showEmojiPickerForThis)
+              Positioned(
+                top: -50,
+                left: isMe ? null : 0,
+                right: isMe ? 0 : null,
+                child: _EmojiReactionPicker(
+                  reactions: reactions,
+                  currentUserId: _currentUser!.uid,
+                  emojis: _reactionEmojis,
+                  onEmojiSelected: (emoji) => _addReaction(messageId, emoji),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _scrollToMessage(
+      String messageId, List<QueryDocumentSnapshot> allMessages) {
+    final index = allMessages.indexWhere((doc) => doc.id == messageId);
+    if (index != -1 && _scrollController.hasClients) {
+      // Approximate scroll position
+      _scrollController.animateTo(
+        index * 80.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPLY & EDIT PREVIEW
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildReplyPreview(ColorScheme cs) {
+    final isOwnMessage = _replyingTo!['senderId'] == _currentUser!.uid;
+    final senderName = isOwnMessage ? 'You' : widget.friendUsername;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 40,
+            decoration: BoxDecoration(
+              color: cs.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to $senderName',
+                  style: TextStyle(
+                    color: cs.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _replyingTo!['text'],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withOpacity(0.6),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
+            onPressed: _cancelReply,
+            iconSize: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditPreview(ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 40,
+            decoration: BoxDecoration(
+              color: cs.tertiary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Editing message',
+                  style: TextStyle(
+                    color: cs.tertiary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _originalEditText ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withOpacity(0.6),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, color: cs.onSurface.withOpacity(0.5)),
+            onPressed: _cancelEdit,
+            iconSize: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INPUT BAR
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildInputBar(ColorScheme cs, bool areFriends) {
     if (!areFriends) {
       return Container(
         padding: EdgeInsets.fromLTRB(
@@ -353,7 +975,7 @@ class _ChatScreenState extends State<ChatScreen> {
         decoration: BoxDecoration(
           color: cs.surface,
           border: Border(
-            top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)),
+            top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
           ),
         ),
         child: Center(
@@ -365,7 +987,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    // ✅ Normal input bar if friends
     return Container(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -376,7 +997,7 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: BoxDecoration(
         color: cs.surface,
         border: Border(
-          top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)),
+          top: BorderSide(color: cs.onSurface.withOpacity(0.08)),
         ),
       ),
       child: Row(
@@ -384,35 +1005,42 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.06),
+                color: cs.onSurface.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _messageController,
-                enabled: areFriends,
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
+                focusNode: _inputFocusNode,
+                decoration: InputDecoration(
+                  hintText: _editingMessageId != null
+                      ? 'Edit message...'
+                      : 'Type a message...',
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 12,
                   ),
                 ),
-                onSubmitted: (_) => _sendMessage(),
+                onSubmitted: (_) =>
+                _editingMessageId != null ? _editMessage() : _sendMessage(),
               ),
             ),
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: areFriends ? _sendMessage : null,
+            onTap: _editingMessageId != null ? _editMessage : _sendMessage,
             child: Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: cs.primary,
+                color: _editingMessageId != null ? cs.tertiary : cs.primary,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.send_rounded, color: cs.onPrimary, size: 20),
+              child: Icon(
+                _editingMessageId != null ? Icons.check : Icons.send_rounded,
+                color: cs.onPrimary,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -421,24 +1049,59 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MESSAGE BUBBLE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ═══════════════════════════════════════════════════════════════════════════════
+// MESSAGE BUBBLE WIDGET
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class _MessageBubble extends StatelessWidget {
+  final String messageId;
   final String text;
   final bool isMe;
   final Timestamp? timestamp;
+  final bool isSelected;
+  final bool deletedForEveryone;
+  final String? deletedBy;
+  final String currentUserId;
+  final Map<String, String> reactions;
+  final Map<String, dynamic>? replyTo;
+  final Timestamp? editedAt;
+  final String friendUsername;
+  final VoidCallback? onReplyTap;
 
   const _MessageBubble({
+    required this.messageId,
     required this.text,
     required this.isMe,
     this.timestamp,
+    required this.isSelected,
+    required this.deletedForEveryone,
+    this.deletedBy,
+    required this.currentUserId,
+    required this.reactions,
+    this.replyTo,
+    this.editedAt,
+    required this.friendUsername,
+    this.onReplyTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
+    // Determine display text
+    String displayText;
+    bool isDeleted = false;
+
+    if (deletedForEveryone) {
+      isDeleted = true;
+      if (deletedBy == currentUserId) {
+        displayText = '🚫 You deleted this message';
+      } else {
+        displayText = '🚫 This message was deleted';
+      }
+    } else {
+      displayText = text;
+    }
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -447,41 +1110,179 @@ class _MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMe ? cs.primary : cs.onSurface.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMe ? 18 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 18),
-          ),
-        ),
         child: Column(
-          crossAxisAlignment: isMe
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
+          crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: isMe ? cs.onPrimary : cs.onSurface,
-                fontSize: 15,
-                height: 1.4,
-              ),
-            ),
-            if (timestamp != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                _formatTime(timestamp!),
-                style: TextStyle(
-                  color: isMe
-                      ? cs.onPrimary.withValues(alpha: 0.6)
-                      : cs.onSurface.withValues(alpha: 0.35),
-                  fontSize: 11,
+            // Reply preview
+            if (replyTo != null && !deletedForEveryone)
+              GestureDetector(
+                onTap: onReplyTap,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border(
+                      left: BorderSide(
+                        color: cs.primary.withOpacity(0.6),
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        replyTo!['senderId'] == currentUserId
+                            ? 'You'
+                            : friendUsername,
+                        style: TextStyle(
+                          color: cs.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        replyTo!['text'] ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withOpacity(0.6),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+
+            // Main bubble
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isMe
+                    ? cs.primary.withOpacity(0.8)
+                    : cs.onSurface.withOpacity(0.15))
+                    : (isMe
+                    ? cs.primary
+                    : cs.onSurface.withOpacity(0.08)),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isMe ? 18 : 4),
+                  bottomRight: Radius.circular(isMe ? 4 : 18),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayText,
+                    style: TextStyle(
+                      color: isDeleted
+                          ? (isMe
+                          ? cs.onPrimary.withOpacity(0.7)
+                          : cs.onSurface.withOpacity(0.5))
+                          : (isMe ? cs.onPrimary : cs.onSurface),
+                      fontSize: 15,
+                      height: 1.4,
+                      fontStyle:
+                      isDeleted ? FontStyle.italic : FontStyle.normal,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (editedAt != null && !deletedForEveryone)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Text(
+                            'edited',
+                            style: TextStyle(
+                              color: isMe
+                                  ? cs.onPrimary.withOpacity(0.5)
+                                  : cs.onSurface.withOpacity(0.3),
+                              fontSize: 10,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      if (timestamp != null)
+                        Text(
+                          _formatTime(timestamp!),
+                          style: TextStyle(
+                            color: isMe
+                                ? cs.onPrimary.withOpacity(0.6)
+                                : cs.onSurface.withOpacity(0.35),
+                            fontSize: 11,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Reactions
+            if (reactions.isNotEmpty && !deletedForEveryone)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: cs.onSurface.withOpacity(0.1),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: cs.shadow.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...reactions.values.toSet().map((emoji) {
+                        final count =
+                            reactions.values.where((e) => e == emoji).length;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(emoji, style: const TextStyle(fontSize: 14)),
+                              if (count > 1)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 2),
+                                  child: Text(
+                                    '$count',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: cs.onSurface.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -493,5 +1294,272 @@ class _MessageBubble extends StatelessWidget {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMOJI REACTION PICKER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _EmojiReactionPicker extends StatelessWidget {
+  final Map<String, String> reactions;
+  final String currentUserId;
+  final List<String> emojis;
+  final Function(String) onEmojiSelected;
+
+  const _EmojiReactionPicker({
+    required this.reactions,
+    required this.currentUserId,
+    required this.emojis,
+    required this.onEmojiSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final myReaction = reactions[currentUserId];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: cs.shadow.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: cs.onSurface.withOpacity(0.08),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: emojis.map((emoji) {
+          final isSelected = myReaction == emoji;
+          return GestureDetector(
+            onTap: () => onEmojiSelected(emoji),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? cs.primary.withOpacity(0.2)
+                    : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                emoji,
+                style: TextStyle(
+                  fontSize: isSelected ? 24 : 22,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DELETE DIALOG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _DeleteDialog extends StatefulWidget {
+  final String chatId;
+  final List<String> selectedIds;
+  final String currentUserId;
+  final VoidCallback onComplete;
+
+  const _DeleteDialog({
+    required this.chatId,
+    required this.selectedIds,
+    required this.currentUserId,
+    required this.onComplete,
+  });
+
+  @override
+  State<_DeleteDialog> createState() => _DeleteDialogState();
+}
+
+class _DeleteDialogState extends State<_DeleteDialog> {
+  bool _isLoading = false;
+  bool _hasOwnMessages = false;
+  bool _allOwn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkMessageOwnership();
+  }
+
+  Future<void> _checkMessageOwnership() async {
+    int ownCount = 0;
+    for (final id in widget.selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (doc.exists && doc.data()?['senderId'] == widget.currentUserId) {
+        ownCount++;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _hasOwnMessages = ownCount > 0;
+        _allOwn = ownCount == widget.selectedIds.length;
+      });
+    }
+  }
+
+  Future<void> _deleteForMe() async {
+    setState(() => _isLoading = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final id in widget.selectedIds) {
+        final ref = FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatId)
+            .collection('messages')
+            .doc(id);
+        batch.update(ref, {
+          'deletedFor': FieldValue.arrayUnion([widget.currentUserId])
+        });
+      }
+      await batch.commit();
+      widget.onComplete();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete')),
+        );
+      }
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _deleteForEveryone() async {
+    setState(() => _isLoading = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final id in widget.selectedIds) {
+        final doc = await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatId)
+            .collection('messages')
+            .doc(id)
+            .get();
+
+        // Only delete for everyone if it's own message
+        if (doc.exists && doc.data()?['senderId'] == widget.currentUserId) {
+          batch.update(doc.reference, {
+            'deletedForEveryone': true,
+            'deletedBy': widget.currentUserId,
+            'text': '', // Clear text for security
+            'reactions': {}, // Clear reactions
+            'replyTo': null, // Clear reply reference
+          });
+        }
+      }
+      await batch.commit();
+      widget.onComplete();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete')),
+        );
+      }
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: cs.error, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Delete ${widget.selectedIds.length} message${widget.selectedIds.length > 1 ? 's' : ''}?',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            if (_isLoading)
+              const CircularProgressIndicator()
+            else
+              Column(
+                children: [
+                  if (_hasOwnMessages)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cs.error,
+                          foregroundColor: cs.onError,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _deleteForEveryone,
+                        child: Text(
+                          _allOwn
+                              ? 'Delete for everyone'
+                              : 'Delete my messages for everyone',
+                        ),
+                      ),
+                    ),
+                  if (_hasOwnMessages) const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: cs.error,
+                        side: BorderSide(color: cs.error),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _deleteForMe,
+                      child: const Text('Delete for me'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
