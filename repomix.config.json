@@ -1,0 +1,33 @@
+{
+  "output": {
+    "style": "markdown",
+    "filePath": "custom-output.md",
+    "removeComments": false,
+    "showLineNumbers": true,
+    "compress": false,
+    "includeFullDirectoryStructure": true,
+    "fileSummary": true,
+    "removeEmptyLines": true,
+    "topFilesLength": 10
+  },
+  "ignore": {
+    "customPatterns": [
+      "android/**",
+      "ios/**",
+      "web/**",
+      "windows/**",
+      "build/**",
+      ".dart_tool/**",
+      "**/*.png",
+      "**/*.ico",
+      "**/*.xml",
+      "**/*.gradle*",
+      ".metadata",
+      "devtools_options.yaml",
+      "pubspec.lock",
+      "test/**"
+    ],
+    "useDefaultPatterns": true,
+    "useGitignore": true
+  }
+}
