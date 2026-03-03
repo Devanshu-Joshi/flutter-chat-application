@@ -106,16 +106,26 @@ class _ChatScreenState extends State<ChatScreen> {
 // TYPING INDICATOR METHODS
 // ═══════════════════════════════════════════════════════════════════════════
 
+  int _lastTypingUpdate = 0;
   void _onTypingChanged(String text) {
-    if (text.isNotEmpty && !_isTyping) {
-      _setTypingStatus(true);
+    if (_currentUser == null) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (text.isNotEmpty) {
+      if (now - _lastTypingUpdate > 1500) {
+        _lastTypingUpdate = now;
+        _setTypingStatus(true);
+      }
+    } else {
+      _clearTypingStatus();
     }
 
-    // Reset the timer on each keystroke
     _typingTimer?.cancel();
-    _typingTimer = Timer(Duration(seconds: _typingTimeoutSeconds), () {
-      _setTypingStatus(false);
-    });
+    _typingTimer = Timer(
+      const Duration(seconds: _typingTimeoutSeconds),
+      _clearTypingStatus,
+    );
   }
 
   Future<void> _setTypingStatus(bool isTyping) async {
@@ -746,14 +756,48 @@ class _ChatScreenState extends State<ChatScreen> {
             areFriends = data?['type'] == 'friends';
           }
 
-          return Column(
-            children: [
-              Expanded(child: _buildMessagesList(cs)),
-              _buildTypingIndicator(cs),
-              _buildReplyPreviewListenable(cs),
-              _buildEditPreviewListenable(cs),
-              _buildInputBar(cs, areFriends),
-            ],
+          return StreamBuilder<DocumentSnapshot>(
+            stream: _chatDocStream,
+            builder: (context, chatSnapshot) {
+
+              final typingData =
+              chatSnapshot.data?.data() != null
+                  ? (chatSnapshot.data!.data() as Map<String, dynamic>)['typing']
+              as Map<String, dynamic>?
+                  : null;
+
+              final isTyping = _isFriendTyping(typingData);
+
+              return Column(
+                children: [
+                  Expanded(child: _buildMessagesList(cs)),
+
+                  if (isTyping)
+                    Container(
+                      padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      child: Row(
+                        children: [
+                          _TypingDots(color: cs.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${widget.friendUsername} is typing...',
+                            style: TextStyle(
+                              color: cs.onSurface.withOpacity(0.5),
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  _buildReplyPreviewListenable(cs),
+                  _buildEditPreviewListenable(cs),
+                  _buildInputBar(cs, areFriends),
+                ],
+              );
+            },
           );
         },
       ),
@@ -1962,76 +2006,59 @@ class _TypingDots extends StatefulWidget {
 }
 
 class _TypingDotsState extends State<_TypingDots>
-    with TickerProviderStateMixin {
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _animations;
+    with SingleTickerProviderStateMixin {
+
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
 
-    _controllers = List.generate(3, (index) {
-      return AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 400),
-      );
-    });
-
-    _animations = _controllers.map((controller) {
-      return Tween<double>(begin: 0, end: -8).animate(
-        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-      );
-    }).toList();
-
-    _startAnimation();
-  }
-
-  void _startAnimation() async {
-    while (mounted) {
-      for (int i = 0; i < 3; i++) {
-        if (!mounted) return;
-        await Future.delayed(const Duration(milliseconds: 150));
-        if (!mounted) return;
-        _controllers[i].forward().then((_) {
-          if (mounted) _controllers[i].reverse();
-        });
-      }
-      await Future.delayed(const Duration(milliseconds: 400));
-    }
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
+    _controller.dispose();
     super.dispose();
+  }
+
+  Widget _buildDot(int index) {
+    final delay = index * 0.2;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        double progress = (_controller.value - delay);
+        if (progress < 0) progress += 1;
+        final bounce = Curves.easeInOut.transform(progress);
+        final offset = -6 * bounce;
+
+        return Transform.translate(
+          offset: Offset(0, offset),
+          child: child,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: widget.color.withOpacity(0.7),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (index) {
-        return AnimatedBuilder(
-          animation: _animations[index],
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(0, _animations[index].value),
-              child: child,
-            );
-          },
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.6),
-              shape: BoxShape.circle,
-            ),
-          ),
-        );
-      }),
+      children: List.generate(3, _buildDot),
     );
   }
 }
