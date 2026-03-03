@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,6 +26,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final _currentUser = FirebaseAuth.instance.currentUser;
+  // Typing indicator state
+  Timer? _typingTimer;
+  bool _isTyping = false;
+  static const _typingTimeoutSeconds = 3;
+
+  // Stream for typing status (cached)
+  late final Stream<DocumentSnapshot> _chatDocStream;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CACHED STREAMS - Created once, not on every build
@@ -85,10 +94,80 @@ class _ChatScreenState extends State<ChatScreen> {
         return null;
       }
     });
+
+    // Chat document stream for typing indicator - NEW
+    _chatDocStream = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .snapshots();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+// TYPING INDICATOR METHODS
+// ═══════════════════════════════════════════════════════════════════════════
+
+  void _onTypingChanged(String text) {
+    if (text.isNotEmpty && !_isTyping) {
+      _setTypingStatus(true);
+    }
+
+    // Reset the timer on each keystroke
+    _typingTimer?.cancel();
+    _typingTimer = Timer(Duration(seconds: _typingTimeoutSeconds), () {
+      _setTypingStatus(false);
+    });
+  }
+
+  Future<void> _setTypingStatus(bool isTyping) async {
+    if (_currentUser == null) return;
+
+    _isTyping = isTyping;
+
+    try {
+      final chatRef = FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId);
+
+      if (isTyping) {
+        // Set typing with current timestamp
+        await chatRef.update({
+          'typing.${_currentUser!.uid}': DateTime.now().millisecondsSinceEpoch,
+        });
+      } else {
+        // Remove typing status
+        await chatRef.update({
+          'typing.${_currentUser!.uid}': FieldValue.delete(),
+        });
+      }
+    } catch (e) {
+      // Chat might not exist yet, ignore
+      debugPrint('Typing status update failed: $e');
+    }
+  }
+
+  void _clearTypingStatus() {
+    _typingTimer?.cancel();
+    if (_isTyping) {
+      _setTypingStatus(false);
+    }
+  }
+
+  bool _isFriendTyping(Map<String, dynamic>? typingData) {
+    if (typingData == null) return false;
+
+    final friendTypingTime = typingData[widget.friendUid];
+    if (friendTypingTime == null) return false;
+
+    // Check if typing timestamp is within last 5 seconds
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final typingTime = friendTypingTime as int;
+
+    return (now - typingTime) < 5000; // 5 seconds threshold
   }
 
   @override
   void dispose() {
+    _clearTypingStatus();
     _removeEmojiOverlay();
     _messageController.dispose();
     _scrollController.dispose();
@@ -98,6 +177,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _directSelectedMessageId.dispose();
     _replyingTo.dispose();
     _editingMessageId.dispose();
+    _typingTimer?.cancel();
     super.dispose();
   }
 
@@ -305,6 +385,8 @@ class _ChatScreenState extends State<ChatScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _sendMessage() async {
+    _clearTypingStatus();
+
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending || _currentUser == null) return;
 
@@ -667,6 +749,7 @@ class _ChatScreenState extends State<ChatScreen> {
           return Column(
             children: [
               Expanded(child: _buildMessagesList(cs)),
+              _buildTypingIndicator(cs),
               _buildReplyPreviewListenable(cs),
               _buildEditPreviewListenable(cs),
               _buildInputBar(cs, areFriends),
@@ -969,6 +1052,42 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildTypingIndicator(ColorScheme cs) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _chatDocStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final typingData = data?['typing'] as Map<String, dynamic>?;
+
+        if (!_isFriendTyping(typingData)) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            children: [
+              _TypingDots(color: cs.primary),
+              const SizedBox(width: 8),
+              Text(
+                '${widget.friendUsername} is typing...',
+                style: TextStyle(
+                  color: cs.onSurface.withOpacity(0.5),
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // REPLY & EDIT PREVIEW - Using ValueListenableBuilder
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1160,6 +1279,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     controller: _messageController,
                     focusNode: _inputFocusNode,
                     textCapitalization: TextCapitalization.sentences,
+                    onChanged: _onTypingChanged,
                     decoration: InputDecoration(
                       hintText:
                       isEditing ? 'Edit message...' : 'Type a message...',
@@ -1824,6 +1944,94 @@ class _DeleteDialogState extends State<_DeleteDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TYPING DOTS ANIMATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _TypingDots extends StatefulWidget {
+  final Color color;
+
+  const _TypingDots({required this.color});
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _animations;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controllers = List.generate(3, (index) {
+      return AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 400),
+      );
+    });
+
+    _animations = _controllers.map((controller) {
+      return Tween<double>(begin: 0, end: -8).animate(
+        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+      );
+    }).toList();
+
+    _startAnimation();
+  }
+
+  void _startAnimation() async {
+    while (mounted) {
+      for (int i = 0; i < 3; i++) {
+        if (!mounted) return;
+        await Future.delayed(const Duration(milliseconds: 150));
+        if (!mounted) return;
+        _controllers[i].forward().then((_) {
+          if (mounted) _controllers[i].reverse();
+        });
+      }
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (index) {
+        return AnimatedBuilder(
+          animation: _animations[index],
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _animations[index].value),
+              child: child,
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: widget.color.withOpacity(0.6),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      }),
     );
   }
 }
