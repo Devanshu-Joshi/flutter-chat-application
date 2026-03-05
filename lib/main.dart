@@ -8,60 +8,33 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
-
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │ NEW IMPORTS                                                              │
-// └─────────────────────────────────────────────────────────────────────────┘
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:chat_app/services/notification_service.dart';
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │ NEW: Background message handler (MUST be top-level function)            │
-// │ This runs in a separate isolate when app is terminated/background       │
-// └─────────────────────────────────────────────────────────────────────────┘
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   debugPrint('[Background] Message received: ${message.messageId}');
-  // Android automatically shows the notification - no additional code needed
 }
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │ NEW: Global navigator key for notification navigation                   │
-// └─────────────────────────────────────────────────────────────────────────┘
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // ┌───────────────────────────────────────────────────────────────────────┐
-  // │ NEW: Register background handler BEFORE runApp                        │
-  // └───────────────────────────────────────────────────────────────────────┘
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // ┌───────────────────────────────────────────────────────────────────────┐
-  // │ NEW: Initialize notification service                                  │
-  // └───────────────────────────────────────────────────────────────────────┘
   await NotificationService.instance.initialize();
-
   runApp(const MyApp());
 }
 
-// EXISTING (unchanged)
 class _InheritedMyApp extends InheritedWidget {
   final MyAppState data;
-
   const _InheritedMyApp({required this.data, required super.child});
 
   @override
-  bool updateShouldNotify(_InheritedMyApp oldWidget) {
-    return true;
-  }
+  bool updateShouldNotify(_InheritedMyApp oldWidget) => true;
 }
 
-// EXISTING (unchanged)
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -73,7 +46,6 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => MyAppState();
 }
 
-// EXISTING (unchanged)
 class MyAppState extends State<MyApp> {
   ThemeMode _themeMode = ThemeMode.system;
   ThemeMode get currentThemeMode => _themeMode;
@@ -103,9 +75,7 @@ class MyAppState extends State<MyApp> {
   }
 
   void updateTheme(ThemeMode mode) {
-    setState(() {
-      _themeMode = mode;
-    });
+    setState(() => _themeMode = mode);
     _saveTheme(mode);
   }
 
@@ -143,9 +113,6 @@ class MyAppState extends State<MyApp> {
     return _InheritedMyApp(
       data: this,
       child: MaterialApp(
-        // ┌─────────────────────────────────────────────────────────────────┐
-        // │ NEW: Add navigatorKey for notification navigation               │
-        // └─────────────────────────────────────────────────────────────────┘
         navigatorKey: navigatorKey,
         scrollBehavior: NoGlowScrollBehavior(),
         debugShowCheckedModeBanner: false,
@@ -160,11 +127,8 @@ class MyAppState extends State<MyApp> {
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │ MODIFIED: AuthWrapper now handles notification setup                    │
+// │ FIXED: AuthWrapper now properly handles async notification setup        │
 // └─────────────────────────────────────────────────────────────────────────┘
-// In lib/main.dart
-// Update AuthWrapper:
-
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -176,27 +140,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _notificationSetupComplete = false;
 
   Future<void> _setupNotifications(User user) async {
+    // Prevent duplicate setup
     if (_notificationSetupComplete) return;
 
     try {
-      // 1. Save token (async)
+      // 1. Save FCM token (this also creates it if missing)
       await NotificationService.instance.saveTokenForUser(user.uid);
 
-      // 2. Set up token refresh listener (sync)
+      // 2. Listen to token refresh
       NotificationService.instance.listenToTokenRefresh(user.uid);
 
-      // 3. Set up tap handlers (sync)
+      // 3. Set up notification tap handlers
       NotificationService.instance.setupNotificationTapHandler(
         navigatorKey: navigatorKey,
         currentUserId: user.uid,
       );
 
-      // 4. Ensure token exists (already done in step 1, so this is redundant)
-      // await MigrationHelper.ensureFCMTokenExists(); // Can be removed
-
       _notificationSetupComplete = true;
+      debugPrint('[AuthWrapper] ✅ Notification setup complete');
     } catch (e) {
-      debugPrint('[AuthWrapper] Notification setup error: $e');
+      debugPrint('[AuthWrapper] ❌ Notification setup error: $e');
     }
   }
 
@@ -213,9 +176,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         final user = snapshot.data;
         if (user != null) {
-          // Run setup in background (don't block UI)
+          // Set up notifications in background (non-blocking)
           _setupNotifications(user);
-
           return const HomeScreen();
         }
 
@@ -227,7 +189,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 }
 
-// EXISTING (unchanged)
 class NoGlowScrollBehavior extends ScrollBehavior {
   @override
   Widget buildOverscrollIndicator(
