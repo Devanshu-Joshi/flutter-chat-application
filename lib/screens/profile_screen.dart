@@ -1,6 +1,9 @@
+// lib/screens/profile_screen.dart
+
 import 'dart:async';
 import 'package:chat_app/main.dart';
 import 'package:chat_app/services/chat_service.dart';
+import 'package:chat_app/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -68,7 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!_validateUsernameFormat(username)) {
         setState(() {
           _feedbackMessage =
-              "Only letters, numbers, . (Dot) and _ (Underscore) allowed.";
+          "Only letters, numbers, . (Dot) and _ (Underscore) allowed.";
           _isAvailable = false;
           _isChecking = false;
         });
@@ -346,11 +349,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _modernTile(
-    IconData icon,
-    String title,
-    String value,
-    ThemeData theme,
-  ) {
+      IconData icon,
+      String title,
+      String value,
+      ThemeData theme,
+      ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -453,24 +456,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       suffixIcon: _isChecking
                           ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
                           : _feedbackMessage.isEmpty
                           ? null
                           : Icon(
-                              _isAvailable ? Icons.check_circle : Icons.cancel,
-                              color: _isAvailable
-                                  ? colorScheme.primary
-                                  : colorScheme.error,
-                              size: 18,
-                            ),
+                        _isAvailable ? Icons.check_circle : Icons.cancel,
+                        color: _isAvailable
+                            ? colorScheme.primary
+                            : colorScheme.error,
+                        size: 18,
+                      ),
                     ),
                     onChanged: (value) => _onUsernameChanged(value, username),
                   ),
@@ -493,11 +496,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       TextButton(
                         onPressed: (_isAvailable && !_isLoading)
                             ? () async {
-                                await _changeUsername(username);
-                                setState(() {
-                                  _isEditingUsername = false;
-                                });
-                              }
+                          await _changeUsername(username);
+                          setState(() {
+                            _isEditingUsername = false;
+                          });
+                        }
                             : null,
                         child: const Text("Save"),
                       ),
@@ -634,11 +637,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOGOUT WITH FCM TOKEN CLEANUP
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
+    if (user == null) return;
 
-    if (!mounted) return;
+    try {
+      // ┌─────────────────────────────────────────────────────────────────────┐
+      // │ NEW: Remove FCM token from Firestore before signing out             │
+      // └─────────────────────────────────────────────────────────────────────┘
+      await NotificationService.instance.removeTokenForUser(user!.uid);
 
-    Navigator.of(context).pop(); // close dialog
+      // Sign out from Firebase Auth
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      // Close the logout dialog
+      Navigator.of(context).pop();
+    } catch (e) {
+      debugPrint('[ProfileScreen] Logout error: $e');
+
+      if (!mounted) return;
+
+      // Still close dialog even if token removal failed
+      Navigator.of(context).pop();
+
+      // Show error to user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Logout completed, but cleanup failed: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 }

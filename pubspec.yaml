@@ -38,6 +38,20 @@ dependencies:
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
   intl: ^0.18.0
+  # Firebase Messaging for push notifications
+  firebase_messaging: ^16.1.1
+
+  # Local notifications (for foreground display)
+  flutter_local_notifications: ^16.3.0
+
+  # HTTP requests to Netlify function
+  http: ^1.1.2
+
+  # State management (optional, using Provider here)
+  provider: ^6.1.1
+
+  # For unique ID generation
+  uuid: ^4.2.1
   shared_preferences: ^2.2.2
 
 dev_dependencies:

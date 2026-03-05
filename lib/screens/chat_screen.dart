@@ -1,9 +1,12 @@
+// lib/screens/chat_screen.dart
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -26,6 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
   final _currentUser = FirebaseAuth.instance.currentUser;
+
   // Typing indicator state
   Timer? _typingTimer;
   bool _isTyping = false;
@@ -68,6 +72,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _initStreams();
+
+    // Tell notification service this chat is active (suppress notifications)
+    NotificationService.instance.setActiveChat(widget.chatId);
   }
 
   void _initStreams() {
@@ -95,7 +102,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    // Chat document stream for typing indicator - NEW
+    // Chat document stream for typing indicator
     _chatDocStream = FirebaseFirestore.instance
         .collection('chats')
         .doc(widget.chatId)
@@ -103,8 +110,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-// TYPING INDICATOR METHODS
-// ═══════════════════════════════════════════════════════════════════════════
+  // TYPING INDICATOR METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
 
   int _lastTypingUpdate = 0;
   void _onTypingChanged(String text) {
@@ -188,6 +195,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _replyingTo.dispose();
     _editingMessageId.dispose();
     _typingTimer?.cancel();
+
+    // Clear active chat when leaving screen
+    NotificationService.instance.setActiveChat(null);
+
     super.dispose();
   }
 
@@ -466,12 +477,53 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       await chatRef.collection('messages').add(messageData);
+
+      // Send push notification to the friend
+      _sendNotification(messageText);
+
       _scrollToBottom();
     } catch (e) {
       if (mounted) _showSnackBar('Failed to send message.');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SEND PUSH NOTIFICATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Send push notification to the chat partner
+  /// Fire-and-forget: doesn't block message sending if notification fails
+  void _sendNotification(String messageText) {
+    if (_currentUser == null) return;
+
+    // Get current user's username for notification title
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUser!.uid)
+        .get()
+        .then((userDoc) {
+      if (!userDoc.exists) return;
+
+      final senderName = userDoc.data()?['username'] as String? ?? 'Someone';
+
+      // Send notification (fire-and-forget)
+      NotificationService.instance.sendNotificationToUser(
+        receiverId: widget.friendUid,
+        senderName: senderName,
+        messageText: messageText.length > 100
+            ? '${messageText.substring(0, 100)}...'
+            : messageText,
+        chatId: widget.chatId,
+        senderId: _currentUser!.uid,
+      ).catchError((e) {
+        // Non-critical error - message was still sent successfully
+        debugPrint('[ChatScreen] ⚠️ Notification failed (non-critical): $e');
+      });
+    }).catchError((e) {
+      debugPrint('[ChatScreen] ⚠️ Failed to fetch username: $e');
+    });
   }
 
   Future<void> _editMessage() async {
@@ -743,7 +795,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
       body: StreamBuilder<DocumentSnapshot?>(
-        stream: _friendshipStream, // Uses cached stream
+        stream: _friendshipStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -759,11 +811,9 @@ class _ChatScreenState extends State<ChatScreen> {
           return StreamBuilder<DocumentSnapshot>(
             stream: _chatDocStream,
             builder: (context, chatSnapshot) {
-
-              final typingData =
-              chatSnapshot.data?.data() != null
-                  ? (chatSnapshot.data!.data() as Map<String, dynamic>)['typing']
-              as Map<String, dynamic>?
+              final typingData = chatSnapshot.data?.data() != null
+                  ? (chatSnapshot.data!.data()
+              as Map<String, dynamic>)['typing'] as Map<String, dynamic>?
                   : null;
 
               final isTyping = _isFriendTyping(typingData);
@@ -771,11 +821,10 @@ class _ChatScreenState extends State<ChatScreen> {
               return Column(
                 children: [
                   Expanded(child: _buildMessagesList(cs)),
-
                   if (isTyping)
                     Container(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 8),
                       child: Row(
                         children: [
                           _TypingDots(color: cs.primary),
@@ -791,7 +840,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         ],
                       ),
                     ),
-
                   _buildReplyPreviewListenable(cs),
                   _buildEditPreviewListenable(cs),
                   _buildInputBar(cs, areFriends),
@@ -926,7 +974,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessagesList(ColorScheme cs) {
     return StreamBuilder<QuerySnapshot>(
-      stream: _messagesStream, // Uses cached stream - no re-subscription!
+      stream: _messagesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -949,9 +997,7 @@ class _ChatScreenState extends State<ChatScreen> {
           reverse: true,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           physics: const BouncingScrollPhysics(),
-          // Preserve item state
           addAutomaticKeepAlives: true,
-          // Use unique keys for stable items
           key: const PageStorageKey('messages_list'),
           itemCount: messages.length,
           itemBuilder: (context, index) {
@@ -980,7 +1026,7 @@ class _ChatScreenState extends State<ChatScreen> {
             }
 
             return Column(
-              key: ValueKey(messageId), // Stable key
+              key: ValueKey(messageId),
               children: [
                 if (showDate && timestamp != null)
                   _buildDateSeparator(timestamp, cs),
@@ -1406,7 +1452,6 @@ class _MessageItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure key exists
     messageKeys[messageId] ??= GlobalKey();
     final messageKey = messageKeys[messageId]!;
 
@@ -2007,7 +2052,6 @@ class _TypingDots extends StatefulWidget {
 
 class _TypingDotsState extends State<_TypingDots>
     with SingleTickerProviderStateMixin {
-
   late final AnimationController _controller;
 
   @override

@@ -4,7 +4,7 @@
     "filePath": "custom-output.md",
     "removeComments": false,
     "showLineNumbers": true,
-    "compress": false,
+    "compress": true,
     "includeFullDirectoryStructure": true,
     "fileSummary": true,
     "removeEmptyLines": true,
