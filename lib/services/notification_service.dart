@@ -342,16 +342,35 @@ class NotificationService {
       final userDoc =
       await _firestore.collection('users').doc(receiverId).get();
 
+      // ┌─────────────────────────────────────────────────────────────────────┐
+      // │ IMPROVED: Better error handling for missing user or token           │
+      // └─────────────────────────────────────────────────────────────────────┘
       if (!userDoc.exists) {
         debugPrint('[NotificationService] ⚠️ Receiver not found: $receiverId');
         return false;
       }
 
-      final fcmToken = userDoc.data()?['fcmToken'] as String?;
-      if (fcmToken == null || fcmToken.isEmpty) {
-        debugPrint('[NotificationService] ⚠️ No FCM token for: $receiverId');
+      final userData = userDoc.data();
+      if (userData == null) {
+        debugPrint('[NotificationService] ⚠️ User data is null: $receiverId');
         return false;
       }
+
+      // Check if fcmToken field exists
+      if (!userData.containsKey('fcmToken')) {
+        debugPrint('[NotificationService] ⚠️ User has no fcmToken field: $receiverId');
+        debugPrint('[NotificationService] ℹ️ User may need to log out and log back in');
+        return false;
+      }
+
+      final fcmToken = userData['fcmToken'] as String?;
+      if (fcmToken == null || fcmToken.isEmpty) {
+        debugPrint('[NotificationService] ⚠️ No FCM token for: $receiverId');
+        debugPrint('[NotificationService] ℹ️ Token is null or empty');
+        return false;
+      }
+
+      debugPrint('[NotificationService] ✅ Found FCM token for $receiverId');
 
       // 2. Call Netlify function
       final response = await http.post(

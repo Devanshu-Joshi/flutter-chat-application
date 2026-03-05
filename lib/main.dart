@@ -162,46 +162,66 @@ class MyAppState extends State<MyApp> {
 // ┌─────────────────────────────────────────────────────────────────────────┐
 // │ MODIFIED: AuthWrapper now handles notification setup                    │
 // └─────────────────────────────────────────────────────────────────────────┘
-class AuthWrapper extends StatelessWidget {
+// In lib/main.dart
+// Update AuthWrapper:
+
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _notificationSetupComplete = false;
+
+  Future<void> _setupNotifications(User user) async {
+    if (_notificationSetupComplete) return;
+
+    try {
+      // 1. Save token (async)
+      await NotificationService.instance.saveTokenForUser(user.uid);
+
+      // 2. Set up token refresh listener (sync)
+      NotificationService.instance.listenToTokenRefresh(user.uid);
+
+      // 3. Set up tap handlers (sync)
+      NotificationService.instance.setupNotificationTapHandler(
+        navigatorKey: navigatorKey,
+        currentUserId: user.uid,
+      );
+
+      // 4. Ensure token exists (already done in step 1, so this is redundant)
+      // await MigrationHelper.ensureFCMTokenExists(); // Can be removed
+
+      _notificationSetupComplete = true;
+    } catch (e) {
+      debugPrint('[AuthWrapper] Notification setup error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Show loading while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (snapshot.hasData) {
-          final user = snapshot.data!;
-
-          // ┌───────────────────────────────────────────────────────────────┐
-          // │ NEW: Save FCM token when user logs in                         │
-          // └───────────────────────────────────────────────────────────────┘
-          NotificationService.instance.saveTokenForUser(user.uid);
-
-          // ┌───────────────────────────────────────────────────────────────┐
-          // │ NEW: Listen for token refresh                                 │
-          // └───────────────────────────────────────────────────────────────┘
-          NotificationService.instance.listenToTokenRefresh(user.uid);
-
-          // ┌───────────────────────────────────────────────────────────────┐
-          // │ NEW: Setup notification tap handlers                          │
-          // └───────────────────────────────────────────────────────────────┘
-          NotificationService.instance.setupNotificationTapHandler(
-            navigatorKey: navigatorKey,
-            currentUserId: user.uid,
-          );
+        final user = snapshot.data;
+        if (user != null) {
+          // Run setup in background (don't block UI)
+          _setupNotifications(user);
 
           return const HomeScreen();
-        } else {
-          return const LoginScreen();
         }
+
+        // Reset flag on logout
+        _notificationSetupComplete = false;
+        return LoginScreen();
       },
     );
   }
